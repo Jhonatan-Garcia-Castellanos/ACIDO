@@ -54,7 +54,7 @@
                         <label class="remember">
                             <input type="checkbox"> Recordarme
                         </label>
-                        <a href="#" class="forgot">¿Olvidaste tu contraseña?</a>
+                       <a href="/ACIDO/BACKPHP/index.php?action=change_password" class="forgot">¿Olvidaste tu contraseña?</a>
                     </div>
 
                     <button type="submit" class="btn-primary">Iniciar Sesión</button>

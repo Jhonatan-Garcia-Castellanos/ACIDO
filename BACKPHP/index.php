@@ -115,6 +115,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
         }
     }
 }
+
+// cambio de contraseña 
+
 // 11
 // 2. PROCESAR ACCIONES POR URL (GET)
 if (isset($_GET["action"])) {
@@ -127,6 +130,10 @@ if (isset($_GET["action"])) {
 
     if ($_GET["action"] === "login") {
         require_once "view/login.php";
+        exit();
+    }
+    if ($_GET["action"] === "change_password") {
+        require_once "view/change_password.php";
         exit();
     }
 
