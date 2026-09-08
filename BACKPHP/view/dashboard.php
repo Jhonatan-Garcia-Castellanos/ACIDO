@@ -22,7 +22,14 @@ if (!isset($_SESSION["user"])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ÁCIDO COLOMBIA</title>
     <!-- Estilos generales y del dashboard -->
-    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
+    <!-- Cargar Tipografía y Alertas Globales -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/global.css?v=<?php echo time(); ?>">
+    <!-- Cargar Layout Base (Sidebar, Topbar y Scroll Interno) -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/layout.css?v=<?php echo time(); ?>">
+    <!-- Cargar Métricas y Gráficas del Dashboard -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/dashboard.css?v=<?php echo time(); ?>">
+    <!-- FontAwesome para los iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Iconos de FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para las gráficas -->
@@ -43,72 +50,78 @@ if (!isset($_SESSION["user"])) {
 
     <div class="dashboard-container">
 
-        <!-- SIDEBAR (Barra Lateral Azul) -->
-        <aside class="sidebar">
+        <!-- SIDEBAR (Barra Lateral Azul Colapsable) -->
+        <!-- SIDEBAR (Barra Lateral Azul Colapsable) -->
+        <aside id="sidebar" class="sidebar">
             <div class="sidebar-brand">
-                <img src="/ACIDO/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
-                <span>ACIDO</span>
+                <button type="button" id="toggleSidebar" class="toggle-btn" title="Contraer/Expandir Menú">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="brand-info sidebar-text">
+                    <img src="/ACIDO/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
+                    <span class="brand-name">ACIDO</span>
+                </div>
             </div>
 
             <hr class="sidebar-divider">
 
             <a href="#" class="nav-item active">
                 <i class="fa-solid fa-gauge-high"></i>
-                <span>Dashboard</span>
+                <span class="sidebar-text">Dashboard</span>
             </a>
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading">INTERFACE</div>
+            <div class="sidebar-heading sidebar-text">INTERFACE</div>
 
             <a href="/ACIDO/BACKPHP/index.php?action=crud" class="nav-item">
                 <i class="fa-solid fa-users"></i>
-                <span>Usuarios</span>
+                <span class="sidebar-text">Usuarios</span>
             </a>
 
             <a href="#" class="nav-item">
                 <i class="fa-solid fa-wrench"></i>
-                <span>Utilidades</span>
+                <span class="sidebar-text">Utilidades</span>
             </a>
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading">COMPLEMENTOS</div>
+            <div class="sidebar-heading sidebar-text">COMPLEMENTOS</div>
 
             <!-- OPCCIÓN DESPLEGABLE: PÁGINAS -->
             <div class="sidebar-dropdown">
                 <button type="button" class="nav-item dropdown-toggle" onclick="toggleSubmenu(this)">
                     <div class="nav-label">
                         <i class="fa-solid fa-folder"></i>
-                        <span>Páginas</span>
+                        <span class="sidebar-text">Páginas</span>
                     </div>
-                    <i class="fa-solid fa-chevron-right arrow-icon"></i>
+                    <i class="fa-solid fa-chevron-right arrow-icon sidebar-text"></i>
                 </button>
 
                 <div class="sidebar-submenu">
                     <a href="/ACIDO/BACKPHP/index.php?action=login">
-                        <i class="fa-solid fa-right-to-bracket"></i> Iniciar Sesión
+                        <i class="fa-solid fa-right-to-bracket"></i> <span class="sidebar-text">Iniciar Sesión</span>
                     </a>
                     <a href="/ACIDO/BACKPHP/index.php?action=register">
-                        <i class="fa-solid fa-user-plus"></i> Registro
+                        <i class="fa-solid fa-user-plus"></i> <span class="sidebar-text">Registro</span>
                     </a>
                     <a href="/ACIDO/BACKPHP/index.php?action=crud">
-                        <i class="fa-solid fa-users"></i> Usuarios
+                        <i class="fa-solid fa-users"></i> <span class="sidebar-text">Usuarios</span>
                     </a>
                 </div>
             </div>
 
             <a href="#" class="nav-item">
                 <i class="fa-solid fa-chart-area"></i>
-                <span>Gráficas</span>
+                <span class="sidebar-text">Gráficas</span>
             </a>
 
             <a href="#" class="nav-item">
                 <i class="fa-solid fa-table"></i>
-                <span>Tablas</span>
+                <span class="sidebar-text">Tablas</span>
             </a>
 
-            <div class="sidebar-promo">
+            <div class="sidebar-promo sidebar-text">
                 <i class="fa-solid fa-rocket promo-icon"></i>
                 <p><strong>ÁCIDO Pro</strong> incluye funciones avanzadas y componentes exclusivos.</p>
             </div>
@@ -134,7 +147,7 @@ if (!isset($_SESSION["user"])) {
                         <span class="badge yellow">7</span>
                     </div>
                     <div class="divider-vertical"></div>
-                    
+
                     <!-- Menú Desplegable con Usuario de Sesión BD -->
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
@@ -245,15 +258,29 @@ if (!isset($_SESSION["user"])) {
 
     </div>
 
-    <!-- SCRIPT PARA RENDERIZAR GRÁFICAS Y MANEJAR EL MENÚ DESPLEGABLE -->
+    <!-- SCRIPT PARA RENDERIZAR GRÁFICAS, SIDEBAR COLAPSABLE Y MENÚ DE USUARIO -->
     <script>
+        // --- 1. LÓGICA DE SIDEBAR DESPLEGABLE / COLAPSABLE ---
+        const sidebar = document.getElementById('sidebar');
+        const toggleSidebarBtn = document.getElementById('toggleSidebar');
+
+        if (toggleSidebarBtn && sidebar) {
+            toggleSidebarBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+
         // Función para abrir/cerrar el submenú de Páginas
         function toggleSubmenu(button) {
             const dropdown = button.parentElement;
+            // Si el sidebar está colapsado, opcionalmente lo expande al hacer clic en submenú
+            if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+            }
             dropdown.classList.toggle('open');
         }
 
-        // --- LÓGICA DEL MENÚ DESPLEGABLE DE USUARIO ---
+        // --- 2. LÓGICA DEL MENÚ DESPLEGABLE DE USUARIO ---
         const userMenuBtn = document.getElementById('userMenuBtn');
         const userDropdownMenu = document.getElementById('userDropdownMenu');
 
@@ -270,7 +297,7 @@ if (!isset($_SESSION["user"])) {
             });
         }
 
-        // 1. Gráfica de Líneas (Ganancias)
+        // --- 3. RENDERING DE GRÁFICAS (Chart.js) ---
         const ctxArea = document.getElementById('areaChart').getContext('2d');
         new Chart(ctxArea, {
             type: 'line',
@@ -294,7 +321,6 @@ if (!isset($_SESSION["user"])) {
             }
         });
 
-        // 2. Gráfica de Dona (Fuentes de Ingresos)
         const ctxDonut = document.getElementById('donutChart').getContext('2d');
         new Chart(ctxDonut, {
             type: 'doughnut',
