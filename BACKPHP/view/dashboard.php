@@ -1,4 +1,9 @@
 <?php
+// 1. DESACTIVAR CACHÉ HTTP (Para evitar que guarde la vista previa)
+header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
+header("Pragma: no-cache"); // HTTP 1.0
+header("Expires: 0"); // Proxies
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -22,6 +27,16 @@ if (!isset($_SESSION["user"])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para las gráficas -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- 2. SCRIPT PARA FORZAR RECARGA AL VOLVER ATRÁS -->
+    <script>
+        window.addEventListener("pageshow", function (event) {
+            // Detecta si la página se carga desde el caché del navegador
+            if (event.persisted || (typeof window.performance != "undefined" && window.performance.navigation.type === 2)) {
+                window.location.reload();
+            }
+        });
+    </script>
 </head>
 
 <body class="dashboard-body">
@@ -47,8 +62,8 @@ if (!isset($_SESSION["user"])) {
             <div class="sidebar-heading">INTERFACE</div>
 
             <a href="/ACIDO/BACKPHP/index.php?action=crud" class="nav-item">
-                <i class="fa-solid fa-gear"></i>
-                <span>CRUD</span>
+                <i class="fa-solid fa-users"></i>
+                <span>Usuarios</span>
             </a>
 
             <a href="#" class="nav-item">

@@ -1,20 +1,22 @@
 <?php
+header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
+header("Pragma: no-cache"); // HTTP 1.0
+header("Expires: 0"); // Proxies
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 if (!isset($_SESSION["user"])) {
     header("Location: index.php?action=login");
     exit();
 }
 
-$host = 'localhost';
-$dbname = 'plojecto';
-$username = 'root';
-$password = '';
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Error de conexión: " . $e->getMessage());
-}
+// INCLUIR LA CONEXIÓN DESDE EL ARCHIVO EXTERNO
+require_once __DIR__ .'/../config/conexion.php'; 
+$conexionObj = new Conexion();
+$pdo = $conexionObj->conn;
+// A partir de esta línea, la variable $pdo ya está disponible para usarse.
 
 // 1. PROCESAR GUARDAR / ACTUALIZAR
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_POST["crud_action"] === "save") {
@@ -75,6 +77,16 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <title>CRUD Usuarios - ÁCIDO COLOMBIA</title>
     <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- AGREGADO: SCRIPT PARA FORZAR RECARGA AL NAVEGAR HACIA ATRÁS -->
+    <script>
+        window.addEventListener("pageshow", function (event) {
+            // Si la página se recupera de la caché interna del navegador (Atrás/Adelante)
+            if (event.persisted || (typeof window.performance != "undefined" && window.performance.navigation.type === 2)) {
+                window.location.reload();
+            }
+        });
+    </script>
 </head>
 
 <body class="dashboard-body crud-body">
