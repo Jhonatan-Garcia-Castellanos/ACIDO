@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crear Cuenta - Ácido Colombia</title>
 
+    <!-- Importación de fuentes e íconos -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -49,14 +50,15 @@
                         <input type="email" name="email" placeholder="Correo electrónico" required>
                     </div>
 
-                    <!-- CAMBIO 1: SE AGREGA EL PATRÓN Y TEXTO DE AYUDA AL INPUT -->
-                    <div class="input-group">
-                        <input type="password" name="password" id="passInput" placeholder="Contraseña"
-                            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._\-#])[A-Za-z\d@$!%*?&._\-#]{8,20}"
-                            title="Debe tener entre 8 y 20 caracteres, incluir al menos una mayúscula, una minúscula, un número y un carácter especial."
-                            required>
+                    <div class="input-group input-group-pass">
+                        <input type="password" name="password" id="passInput" placeholder="Contraseña" required>
                         <span class="show-btn" onclick="togglePass()">VER</span>
                     </div>
+
+                    <!-- Texto descriptivo controlado por la clase CSS externa -->
+                    <p id="passHelpText" class="pass-requirements-text">
+                        8 a 20 caracteres, mayúscula, minúscula, número y símbolo (@$!%*?&._-#)
+                    </p>
 
                     <button type="submit" class="btn-primary">Registrarse</button>
                 </form>
@@ -85,7 +87,29 @@
             }
         }
 
-        // Manejo del registro por AJAX
+        // --- VALIDACIÓN EN TIEMPO REAL (FUERA DEL SUBMIT) ---
+        const passInput = document.getElementById('passInput');
+        const passHelpText = document.getElementById('passHelpText');
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._\-#])[A-Za-z\d@$!%*?&._\-#]{8,20}$/;
+
+        passInput.addEventListener('input', function () {
+            const value = this.value;
+
+            if (value.length === 0) {
+                // Si borra todo, regresa al estado neutral (Gris)
+                passHelpText.classList.remove('valid', 'invalid');
+            } else if (passwordRegex.test(value)) {
+                // Cumple los requisitos (Verde)
+                passHelpText.classList.remove('invalid');
+                passHelpText.classList.add('valid');
+            } else {
+                // No cumple aún (Rojo)
+                passHelpText.classList.remove('valid');
+                passHelpText.classList.add('invalid');
+            }
+        });
+
+        // --- MANEJO DEL REGISTRO POR AJAX ---
         document.getElementById('registerForm').addEventListener('submit', async function (e) {
             e.preventDefault();
 
@@ -93,16 +117,13 @@
             alertBox.style.display = 'none';
             alertBox.className = 'alert-msg';
 
-            const password = document.getElementById('passInput').value;
-
-            // CAMBIO 2: VALIDACIÓN CON REGEX EN JAVASCRIPT ANTES DEL FETCH
-            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._\-#])[A-Za-z\d@$!%*?&._\-#]{8,20}$/;
+            const password = passInput.value;
 
             if (!passwordRegex.test(password)) {
-                alertBox.textContent = 'La contraseña debe tener entre 8 y 20 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial (@$!%*?&._-#).';
+                alertBox.textContent = 'La contraseña no cumple con los requisitos indicados.';
                 alertBox.classList.add('alert-error');
                 alertBox.style.display = 'block';
-                return; // Detiene el envío
+                return;
             }
 
             const formData = new FormData(this);
@@ -124,6 +145,7 @@
                     alertBox.style.display = 'block';
 
                     this.reset();
+                    passHelpText.classList.remove('valid', 'invalid'); // Resetea el color del texto
 
                     setTimeout(() => {
                         window.location.href = data.redirect || '/ACIDO/BACKPHP/index.php?action=login';

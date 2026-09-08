@@ -1081,3 +1081,27 @@ body.dashboard-body.crud-body .dashboard-container {
     color: #721c24;
     border: 1px solid #f5c6cb;
 }
+
+/* Estado base neutral (Gris suave por defecto) */
+.pass-requirements-text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 10px !important;
+    color: #a0aec0 !important; /* Gris por defecto */
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-weight: 500 !important;
+    margin: 4px 0 12px 0 !important;
+    text-align: left !important;
+    line-height: 1.2 !important;
+    transition: color 0.3s ease;
+}
+
+/* Solo cuando es incorrecto (Rojo) */
+.pass-requirements-text.invalid {
+    color: #e53e3e !important;
+}
+
+/* Solo cuando es correcto (Verde) */
+.pass-requirements-text.valid {
+    color: #38a169 !important;
+}
