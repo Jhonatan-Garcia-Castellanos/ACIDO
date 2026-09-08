@@ -120,11 +120,7 @@ if (!isset($_SESSION["user"])) {
                 <i class="fa-solid fa-table"></i>
                 <span class="sidebar-text">Tablas</span>
             </a>
-
-            <div class="sidebar-promo sidebar-text">
-                <i class="fa-solid fa-rocket promo-icon"></i>
-                <p><strong>ÁCIDO Pro</strong> incluye funciones avanzadas y componentes exclusivos.</p>
-            </div>
+            
         </aside>
 
         <!-- CONTENIDO PRINCIPAL -->
