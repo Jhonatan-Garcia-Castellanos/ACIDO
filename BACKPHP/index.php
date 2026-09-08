@@ -158,9 +158,6 @@ if (isset($_GET["action"])) {
 
 // 3. CARGAR VISTA POR DEFECTO
 if (isset($_SESSION["user"])) {
-    header("Location: index.php?action=dashboard");
-    exit();
-} else {
     header("Location: index.php?action=login");
     exit();
 }
