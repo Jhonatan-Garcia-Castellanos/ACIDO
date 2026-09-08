@@ -17,7 +17,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
         if (empty($email) || empty($password)) {
             if ($isAjax) {
-                if (ob_get_length()) ob_clean();
+                // =========================================================================
+                // AJUSTE REALIZADO: LIMPIEZA TOTAL DE BÚFER
+                // =========================================================================
+                while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => 'Completa todos los campos.']);
                 exit();
@@ -26,9 +29,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             exit();
         }
 
+        // Expresión regular: entre 8 y 20 caracteres, una mayúscula, una minúscula, un número y un carácter especial
+        $passwordRegex = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@\$!%*?&._\-#])[A-Za-z\d@\$!%*?&._\-#]{8,20}$/';
+
+        if (!preg_match($passwordRegex, $password)) {
+            if ($isAjax) {
+                // =========================================================================
+                // AJUSTE REALIZADO: LIMPIEZA TOTAL DE BÚFER
+                // =========================================================================
+                while (ob_get_level()) { ob_end_clean(); }
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'La contraseña debe tener entre 8 y 20 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial.'
+                ]);
+                exit();
+            }
+            header("Location: index.php?action=register&error=invalid_password");
+            exit();
+        }
+        
         if ($controller->registrar($email, $password)) {
             if ($isAjax) {
-                if (ob_get_length()) ob_clean();
+                // =========================================================================
+                // AJUSTE REALIZADO: LIMPIEZA TOTAL DE BÚFER
+                // =========================================================================
+                while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
                 echo json_encode([
                     'success' => true, 
@@ -41,12 +67,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             exit();
         } else {
             if ($isAjax) {
-                if (ob_get_length()) ob_clean();
+                // =========================================================================
+                // AJUSTE REALIZADO: MENSAJE PERSONALIZADO SI EL USUARIO YA EXISTE + BÚFER
+                // =========================================================================
+                while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'message' => 'El correo ya existe o fallo el registro.']);
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'Este correo electrónico ya se encuentra registrado. Intenta iniciar sesión.'
+                ]);
                 exit();
             }
-            header("Location: index.php?action=register&error=register_failed");
+            header("Location: index.php?action=register&error=user_exists");
             exit();
         }
     } 
@@ -62,7 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             $_SESSION["user"] = $usuario;
 
             if ($isAjax) {
-                if (ob_get_length()) ob_clean();
+                while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true, 'redirect' => 'index.php?action=dashboard']);
                 exit();
@@ -72,7 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             exit();
         } else {
             if ($isAjax) {
-                if (ob_get_length()) ob_clean();
+                while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => 'Correo o contraseña incorrectos.']);
                 exit();
