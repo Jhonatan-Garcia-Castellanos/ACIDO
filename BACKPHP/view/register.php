@@ -11,7 +11,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
+
+    <!-- CSS Independientes de Ácido Colombia -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/global.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/auth.css?v=<?php echo time(); ?>">
 </head>
 
 <body>

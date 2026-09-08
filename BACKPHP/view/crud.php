@@ -13,10 +13,9 @@ if (!isset($_SESSION["user"])) {
 }
 
 // INCLUIR LA CONEXIÓN DESDE EL ARCHIVO EXTERNO
-require_once __DIR__ .'/../config/conexion.php'; 
+require_once __DIR__ . '/../config/conexion.php';
 $conexionObj = new Conexion();
 $pdo = $conexionObj->conn;
-// A partir de esta línea, la variable $pdo ya está disponible para usarse.
 
 // 1. PROCESAR GUARDAR / ACTUALIZAR
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_POST["crud_action"] === "save") {
@@ -46,9 +45,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_P
             $stmt->execute([$email_input, $nombreAutomatico, $hash]);
         }
     }
-    
-    // Limpieza de búfer para evitar desajustes visuales tras redirección
-    if (ob_get_length()) ob_clean();
+
+    if (ob_get_length())
+        ob_clean();
     header("Location: index.php?action=crud");
     exit();
 }
@@ -58,8 +57,9 @@ if (isset($_GET["delete_email"])) {
     $email_delete = $_GET["delete_email"];
     $stmt = $pdo->prepare("DELETE FROM usuario WHERE email = ?");
     $stmt->execute([$email_delete]);
-    
-    if (ob_get_length()) ob_clean();
+
+    if (ob_get_length())
+        ob_clean();
     header("Location: index.php?action=crud");
     exit();
 }
@@ -75,13 +75,19 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRUD Usuarios - ÁCIDO COLOMBIA</title>
-    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
+    <!-- Evita caché del archivo de estilos -->
+    <!-- Cargar Tipografía y Alertas Globales -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/global.css?v=<?php echo time(); ?>">
+    <!-- Cargar Layout Base (Sidebar, Topbar y Scroll Interno) -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/layout.css?v=<?php echo time(); ?>">
+    <!-- Cargar Tablas y Formulario del CRUD -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/crud.css?v=<?php echo time(); ?>">
+    <!-- FontAwesome para los iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- AGREGADO: SCRIPT PARA FORZAR RECARGA AL NAVEGAR HACIA ATRÁS -->
     <script>
         window.addEventListener("pageshow", function (event) {
-            // Si la página se recupera de la caché interna del navegador (Atrás/Adelante)
             if (event.persisted || (typeof window.performance != "undefined" && window.performance.navigation.type === 2)) {
                 window.location.reload();
             }
@@ -93,71 +99,72 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <div class="dashboard-container crud-container">
 
-        <!-- SIDEBAR -->
-        <aside class="sidebar">
+        <!-- SIDEBAR COLAPSABLE -->
+        <aside id="sidebar" class="sidebar">
             <div class="sidebar-brand">
-                <img src="/ACIDO/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
-                <span>ACIDO</span>
+                <button type="button" id="toggleSidebar" class="toggle-btn" title="Contraer/Expandir Menú">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="brand-info sidebar-text">
+                    <img src="/ACIDO/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
+                    <span class="brand-name">ACIDO</span>
+                </div>
             </div>
 
             <hr class="sidebar-divider">
 
             <a href="index.php?action=dashboard" class="nav-item">
                 <i class="fa-solid fa-gauge-high"></i>
-                <span>Dashboard</span>
+                <span class="sidebar-text">Dashboard</span>
             </a>
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading">INTERFACE</div>
+            <div class="sidebar-heading sidebar-text">INTERFACE</div>
 
             <a href="index.php?action=crud" class="nav-item active">
                 <i class="fa-solid fa-users"></i>
-                <span>Usuarios</span>
+                <span class="sidebar-text">Usuarios</span>
             </a>
 
             <a href="#" class="nav-item">
                 <i class="fa-solid fa-wrench"></i>
-                <span>Utilidades</span>
+                <span class="sidebar-text">Utilidades</span>
             </a>
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading">COMPLEMENTOS</div>
+            <div class="sidebar-heading sidebar-text">COMPLEMENTOS</div>
 
-            <div class="sidebar-dropdown open">
+            <div class="sidebar-dropdown">
                 <button type="button" class="nav-item dropdown-toggle" onclick="toggleSubmenu(this)">
                     <div class="nav-label">
                         <i class="fa-solid fa-folder"></i>
-                        <span>Páginas</span>
+                        <span class="sidebar-text">Páginas</span>
                     </div>
-                    <i class="fa-solid fa-chevron-right arrow-icon"></i>
+                    <i class="fa-solid fa-chevron-right arrow-icon sidebar-text"></i>
                 </button>
 
                 <div class="sidebar-submenu">
                     <a href="index.php?action=login">
-                        <i class="fa-solid fa-right-to-bracket"></i> Iniciar Sesión
+                        <i class="fa-solid fa-right-to-bracket"></i> <span class="sidebar-text">Iniciar Sesión</span>
                     </a>
                     <a href="index.php?action=register">
-                        <i class="fa-solid fa-user-plus"></i> Registro
+                        <i class="fa-solid fa-user-plus"></i> <span class="sidebar-text">Registro</span>
                     </a>
                 </div>
             </div>
 
             <a href="#" class="nav-item">
                 <i class="fa-solid fa-chart-area"></i>
-                <span>Gráficas</span>
+                <span class="sidebar-text">Gráficas</span>
             </a>
 
             <a href="#" class="nav-item">
                 <i class="fa-solid fa-table"></i>
-                <span>Tablas</span>
+                <span class="sidebar-text">Tablas</span>
             </a>
 
-            <div class="sidebar-promo">
-                <i class="fa-solid fa-rocket promo-icon"></i>
-                <p><strong>ÁCIDO Pro</strong> incluye funciones avanzadas y componentes exclusivos.</p>
-            </div>
         </aside>
 
         <!-- MAIN CONTENT -->
@@ -222,21 +229,31 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <input type="hidden" name="crud_action" value="save">
                                 <input type="hidden" name="original_email" id="form-original-email">
 
-                                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: center;">
+                                <div
+                                    style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: center;">
                                     <div>
-                                        <label style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Correo Electrónico</label>
-                                        <input type="email" class="crud-input" name="email" id="form-email" placeholder="Correo Electrónico" required>
+                                        <label
+                                            style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Correo
+                                            Electrónico</label>
+                                        <input type="email" class="crud-input" name="email" id="form-email"
+                                            placeholder="Correo Electrónico" required>
                                     </div>
                                     <div>
-                                        <label style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Contraseña</label>
-                                        <input type="password" class="crud-input" name="password" id="form-password" placeholder="Ingrese la contraseña">
+                                        <label
+                                            style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Contraseña</label>
+                                        <input type="password" class="crud-input" name="password" id="form-password"
+                                            placeholder="Ingrese la contraseña">
                                     </div>
                                     <div style="padding-top: 18px; display: flex; gap: 8px;">
-                                        <button type="submit" class="btn-crud-save" id="btn-submit-text">Guardar</button>
-                                        <button type="button" class="btn-crud-cancel" id="btn-cancelar" onclick="limpiarFormulario()" style="display: none;">Cancelar</button>
+                                        <button type="submit" class="btn-crud-save"
+                                            id="btn-submit-text">Guardar</button>
+                                        <button type="button" class="btn-crud-cancel" id="btn-cancelar"
+                                            onclick="limpiarFormulario()" style="display: none;">Cancelar</button>
                                     </div>
                                 </div>
-                                <small style="color: #a0aec0; display: block; margin-top: 12px; font-size: 11px;">* Al editar, si dejas la contraseña en blanco, se mantendrá la contraseña cifrada actual.</small>
+                                <small style="color: #a0aec0; display: block; margin-top: 12px; font-size: 11px;">* Al
+                                    editar, si dejas la contraseña en blanco, se mantendrá la contraseña cifrada
+                                    actual.</small>
                             </form>
                         </div>
                     </div>
@@ -266,19 +283,24 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     <?php echo htmlspecialchars($row['id'] ?? $row['id_usuario'] ?? 'N/A'); ?>
                                                 </td>
                                                 <td>
-                                                    <strong style="color: #1a202c;"><?php echo htmlspecialchars($row['email']); ?></strong>
+                                                    <strong
+                                                        style="color: #1a202c;"><?php echo htmlspecialchars($row['email']); ?></strong>
                                                 </td>
                                                 <td style="color: #4a5568;">
                                                     <?php echo htmlspecialchars($row['nombre'] ?? ''); ?>
                                                 </td>
                                                 <td>
-                                                    <code style="background: #edf2f7; padding: 4px 8px; border-radius: 4px; color: #4a5568; word-break: break-all; max-width: 200px; display: inline-block;"><?php echo htmlspecialchars(substr($row['password'], 0, 20) . '...'); ?></code>
+                                                    <code
+                                                        style="background: #edf2f7; padding: 4px 8px; border-radius: 4px; color: #4a5568; word-break: break-all; max-width: 200px; display: inline-block;"><?php echo htmlspecialchars(substr($row['password'], 0, 20) . '...'); ?></code>
                                                 </td>
                                                 <td style="text-align: right;">
-                                                    <button type="button" class="btn-action-edit" onclick="editarRegistro('<?php echo htmlspecialchars($row['email'], ENT_QUOTES); ?>')">
+                                                    <button type="button" class="btn-action-edit"
+                                                        onclick="editarRegistro('<?php echo htmlspecialchars($row['email'], ENT_QUOTES); ?>')">
                                                         <i class="fa-solid fa-pen-to-square"></i> Editar
                                                     </button>
-                                                    <a href="index.php?action=crud&delete_email=<?php echo urlencode($row['email']); ?>" class="btn-action-delete" onclick="return confirm('¿Estás seguro de eliminar este usuario?');">
+                                                    <a href="index.php?action=crud&delete_email=<?php echo urlencode($row['email']); ?>"
+                                                        class="btn-action-delete"
+                                                        onclick="return confirm('¿Estás seguro de eliminar este usuario?');">
                                                         <i class="fa-solid fa-trash"></i> Eliminar
                                                     </a>
                                                 </td>
@@ -286,7 +308,8 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="5" style="text-align: center; color: #a0aec0; padding: 40px; font-style: italic;">
+                                            <td colspan="5"
+                                                style="text-align: center; color: #a0aec0; padding: 40px; font-style: italic;">
                                                 No hay usuarios registrados actualmente.
                                             </td>
                                         </tr>
@@ -302,10 +325,22 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </main>
     </div>
 
-    <!-- SCRIPT LIMPIO Y SIN DUPLICACIONES -->
     <script>
+        // LÓGICA PARA COLAPSAR Y EXPANDIR EL SIDEBAR
+        const sidebar = document.getElementById('sidebar');
+        const toggleSidebarBtn = document.getElementById('toggleSidebar');
+
+        if (toggleSidebarBtn && sidebar) {
+            toggleSidebarBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+
         function toggleSubmenu(button) {
             const dropdown = button.parentElement;
+            if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+            }
             dropdown.classList.toggle('open');
         }
 
@@ -332,7 +367,7 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
             document.getElementById('btn-cancelar').style.display = 'none';
         }
 
-        // Menú desplegable de usuario
+        // Menú desplegable de usuario en la topbar
         const userMenuBtn = document.getElementById('userMenuBtn');
         const userDropdownMenu = document.getElementById('userDropdownMenu');
 

@@ -5,7 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login Acido</title>
-    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
+    <!-- Cargar Tipografía y Alertas Globales -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/global.css?v=<?php echo time(); ?>">
+    <!-- Cargar Estilos Exclusivos del Login -->
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/css/auth.css?v=<?php echo time(); ?>">
+    <!-- FontAwesome para los iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 
