@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cambiar Contraseña - ACIDO</title>
     <link rel="stylesheet" href="../public/styles.css">
 </head>
+
 <body>
     <div class="container">
         <!-- Panel Izquierdo -->
@@ -34,7 +36,7 @@
                     </div>
                 <?php endif; ?>
 
-               <form action="/ACIDO/BACKPHP/controller/change_password.php" method="POST">
+                <form action="/ACIDO/BACKPHP/controller/change_password.php" method="POST">
                     <div class="input-group">
                         <input type="email" name="email" placeholder="Correo electrónico" required>
                     </div>
@@ -48,7 +50,8 @@
                     </div>
 
                     <div class="input-group">
-                        <input type="password" name="confirmar_password" placeholder="Confirmar nueva contraseña" required>
+                        <input type="password" name="confirmar_password" placeholder="Confirmar nueva contraseña"
+                            required>
                     </div>
 
                     <button type="submit" class="btn-primary">GUARDAR CONTRASEÑA</button>
@@ -57,10 +60,11 @@
                 <div class="divider">O</div>
 
                 <div class="footer-links">
-                    <a href="login.php">¿RECORDAS TE TU CLAVE? INICIA SESIÓN</a>
+                    <a href="/ACIDO/BACKPHP/index.php?action=login">¿RECORDAS TE TU CLAVE? INICIA SESIÓN</a>
                 </div>
             </div>
         </div>
     </div>
 </body>
-</html> 
+
+</html>
