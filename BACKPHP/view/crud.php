@@ -242,9 +242,10 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <table class="crud-table">
                                 <thead>
                                     <tr>
+                                        <th><b>ID</b></th>
                                         <th><b>Correo</b></th>
                                         <th><b>Nombre</b></th>
-                                        <th><b>Password (Hash)</b></th>
+                                        <th><b>Password</b></th>
                                         <th style="text-align: right;"><b>Acciones</b></th>
                                     </tr>
                                 </thead>
@@ -252,6 +253,7 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <?php if (!empty($registros)): ?>
                                         <?php foreach ($registros as $row): ?>
                                             <tr>
+                                                <td style="color: #4a5568;"><?php echo htmlspecialchars($row['id']); ?></td>
                                                 <td><strong
                                                         style="color: #1a202c;"><?php echo htmlspecialchars($row['email']); ?></strong>
                                                 </td>
