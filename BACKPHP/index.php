@@ -7,36 +7,77 @@ $controller = new UsuarioController();
 // 1. PROCESAR FORMULARIOS (POST)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
+    // Detectar si la petición viene por AJAX (Fetch desde JS)
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+    // A. REGISTRO DE USUARIO
     if ($_POST["action"] === "register") {
         $email = trim($_POST["email"] ?? $_POST["username"] ?? '');
         $password = $_POST["password"] ?? '';
 
-        if (empty($email)) {
+        if (empty($email) || empty($password)) {
+            if ($isAjax) {
+                if (ob_get_length()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Completa todos los campos.']);
+                exit();
+            }
             header("Location: index.php?action=register&error=empty_email");
             exit();
         }
 
         if ($controller->registrar($email, $password)) {
+            if ($isAjax) {
+                if (ob_get_length()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true, 
+                    'message' => '¡Usuario registrado con éxito!',
+                    'redirect' => 'index.php?action=login'
+                ]);
+                exit();
+            }
             header("Location: index.php?action=login&status=success_register");
             exit();
         } else {
+            if ($isAjax) {
+                if (ob_get_length()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'El correo ya existe o fallo el registro.']);
+                exit();
+            }
             header("Location: index.php?action=register&error=register_failed");
             exit();
         }
-    }
-
-    if ($_POST["action"] === "login") {
+    } 
+    
+    // B. INICIO DE SESIÓN
+    elseif ($_POST["action"] === "login") {
         $email = trim($_POST["email"] ?? $_POST["username"] ?? '');
         $password = $_POST["password"] ?? '';
 
-        $user = $controller->login($email, $password);
+        $usuario = $controller->login($email, $password);
 
-        if ($user) {
-            $_SESSION["user"] = $user;
-            // CAMBIO AQUÍ: Redirigir explícitamente a action=dashboard
+        if ($usuario) {
+            $_SESSION["user"] = $usuario;
+
+            if ($isAjax) {
+                if (ob_get_length()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'redirect' => 'index.php?action=dashboard']);
+                exit();
+            }
+
             header("Location: index.php?action=dashboard");
             exit();
         } else {
+            if ($isAjax) {
+                if (ob_get_length()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Correo o contraseña incorrectos.']);
+                exit();
+            }
+
             header("Location: index.php?action=login&error=invalid_credentials");
             exit();
         }
@@ -62,7 +103,6 @@ if (isset($_GET["action"])) {
         exit();
     }
 
-    // CAMBIO AQUÍ: Cargar dashboard si se pide por URL y hay sesión
     if ($_GET["action"] === "dashboard") {
         if (isset($_SESSION["user"])) {
             require_once "view/dashboard.php";
@@ -85,7 +125,6 @@ if (isset($_GET["action"])) {
 }
 
 // 3. CARGAR VISTA POR DEFECTO
-// Si el usuario entra a index.php sin parámetros y tiene sesión, redirigir a action=dashboard
 if (isset($_SESSION["user"])) {
     header("Location: index.php?action=dashboard");
     exit();

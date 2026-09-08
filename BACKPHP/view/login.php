@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
 
     <div class="main-screen">
@@ -19,10 +21,9 @@
                 <div class="circle circle-top"></div>
                 <div class="circle circle-bottom-left"></div>
                 <div class="circle circle-bottom-right"></div>
-                
+
                 <div class="brand-content">
                     <h1>BIENVENIDOS</h1>
-
                     <p>Ingresa a tu cuenta para gestionar tus módulos y consultar la información de tu plataforma.</p>
                 </div>
             </div>
@@ -33,15 +34,15 @@
                 <h3>Iniciar Sesión</h3>
                 <p class="subtitle">Ingresa tus credenciales para continuar</p>
 
-                <?php if (isset($error)): ?>
-                    <div class="error-msg"><?php echo $error; ?></div>
-                <?php endif; ?>
+                <!-- Mensaje de error para JavaScript -->
+                <div id="errorMsg" class="error-msg" style="display: none;"></div>
 
-                <form action="/ACIDO/BACKPHP/index.php" method="POST">                    
+                <!-- UN SOLO FORMULARIO CON EL ID CORRECTO -->
+                <form id="loginForm" method="POST">
                     <input type="hidden" name="action" value="login">
 
                     <div class="input-group">
-                        <input type="email" name="email" placeholder="Correo electronico" required>
+                        <input type="email" name="email" placeholder="Correo electrónico" required>
                     </div>
 
                     <div class="input-group">
@@ -82,6 +83,38 @@
                 btn.textContent = 'VER';
             }
         }
+
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault(); // Detiene el recargo de pantalla
+
+            const formData = new FormData(this);
+            const errorContainer = document.getElementById('errorMsg');
+            errorContainer.style.display = 'none';
+
+            try {
+                const response = await fetch('/ACIDO/BACKPHP/index.php', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = data.redirect || '/ACIDO/BACKPHP/index.php?action=dashboard';
+                } else {
+                    errorContainer.textContent = data.message || 'Correo o contraseña incorrectos.';
+                    errorContainer.style.display = 'block';
+                }
+            } catch (error) {
+                console.error(error);
+                errorContainer.textContent = 'Ocurrió un error al procesar la solicitud.';
+                errorContainer.style.display = 'block';
+            }
+        });
     </script>
 </body>
+
 </html>

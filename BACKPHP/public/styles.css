@@ -27,6 +27,19 @@ body, p, a, span, h1, h2, h3, h4, h5, h6, label, input, button {
     }
 }
 
+
+/* Estilo base del Login (pantalla centrada) */
+body {
+    background-color: #D48A3A !important;
+    min-height: 100vh;
+    width: 100%;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+}
+
 /* Estilo base del Login (pantalla centrada) */
 body {
     background-color: #D48A3A !important;
@@ -356,8 +369,13 @@ body.dashboard-body .dashboard-container {
 
 
 /* Sidebar Azul */
+/* 1. Sidebar fijo con su gradiente original */
 .sidebar {
     width: 300px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
     background-color: #61bb21;
     background-image: linear-gradient(180deg, #1C3B4A 15%, #004BA0 90%, #808080);
     color: #ffffff;
@@ -365,6 +383,36 @@ body.dashboard-body .dashboard-container {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+/* 2. Topbar fija con su gradiente original */
+.topbar {
+    height: 70px;
+    position: fixed;
+    top: 0;
+    left: 300px;
+    width: calc(100% - 300px);
+    background: linear-gradient(180deg, rgba(29, 59, 74, 0.89), rgba(0, 75, 160, 1));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 25px;
+    z-index: 1000;
+}
+
+/* 3. Panel de contenido con scroll encerrado en el área de trabajo */
+.main-content {
+    margin-left: 300px;
+    margin-top: 70px;
+    width: calc(100% - 300px);
+    height: calc(100vh - 70px);
+    overflow-y: auto;
+    background: #f8f9fc;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar-brand {
@@ -434,19 +482,26 @@ body.dashboard-body .dashboard-container {
 
 /* Contenido Principal */
 .main-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    margin-left: 300px; /* Desplaza el contenido para no tapar con el sidebar */
+    margin-top: 70px;  /* Desplaza el contenido para no tapar con la topbar */
+    width: calc(100% - 300px);
+    min-height: calc(100vh - 70px);
+    background: #f8f9fc;
 }
 
 /* Topbar Superior */
 .topbar {
     height: 70px;
+    position: fixed;
+    top: 0;
+    left: 300px; /* Empieza exactamente donde termina el sidebar */
+    width: calc(100% - 300px); /* Ocupa el resto de la pantalla */
     background: linear-gradient(180deg, rgba(29, 59, 74, 0.89), rgba(0, 75, 160, 1));
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 25px;
+    z-index: 999;
 }
 
 .search-bar {
@@ -772,15 +827,12 @@ html, body.dashboard-body.crud-body {
     overflow-y: auto !important;
 }
 
+/* Corrección de ancho para evitar el scroll horizontal extra */
 body.dashboard-body.crud-body .dashboard-container {
+    width: 100% !important;
     min-height: 100vh !important;
-    height: 100% !important;
-    width: 100vw !important;
-    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
 }
 
 .content-padding-crud {
@@ -992,4 +1044,40 @@ body.dashboard-body.crud-body .dashboard-container {
     height: 1px;
     background-color: #edf2f7;
     margin: 6px 0;
+}
+
+.error-msg {
+    background-color: #ffe3e3;
+    color: #dc3545;
+    border: 1px solid #f5c6cb;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+/* Alertas dinámicas */
+.alert-msg {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 18px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+/* Estado Exitoso - Verde */
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+/* Estado Fallido - Rojo */
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
 }

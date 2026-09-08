@@ -5,25 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crear Cuenta - Ácido Colombia</title>
 
-    <!-- Importación directa de la fuente Cinzel -->
+    <!-- Importación de fuentes e íconos -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Íconos de Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-
-    <!-- Hoja de estilos principal -->
     <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
 </head>
 <body>
 
     <div class="main-screen">
-        <!-- Esfera flotante exterior en la esquina inferior derecha -->
         <div class="outer-circle"></div>
 
         <div class="login-wrapper">
-            <!-- Panel Izquierdo Azul con Esferas -->
+            <!-- Panel Izquierdo -->
             <div class="brand-panel">
                 <div class="circle circle-top"></div>
                 <div class="circle circle-bottom-left"></div>
@@ -36,21 +31,20 @@
                 </div>
             </div>
 
-            <!-- Panel Derecho: Formulario de Registro -->
+            <!-- Panel Derecho -->
             <div class="form-panel">
                 <img src="/ACIDO/BACKPHP/public/iconooo.png" alt="icon" class="logoaci">
                 <h3>Crear Cuenta</h3>
                 <p class="subtitle">Ingresa tus datos para registrarte</p>
 
-                <?php if (isset($error)): ?>
-                    <div class="error-msg"><?php echo $error; ?></div>
-                <?php endif; ?>
+                <!-- Contenedor dinámico de alertas (Éxito / Error) -->
+                <div id="alertMsg" class="alert-msg" style="display: none;"></div>
 
-                <form action="/ACIDO/BACKPHP/index.php" method="POST">
+                <form id="registerForm" method="POST">
                     <input type="hidden" name="action" value="register">
 
                     <div class="input-group">
-                        <input type="email" name="email" placeholder="Correo electronico" required>
+                        <input type="email" name="email" placeholder="Correo electrónico" required>
                     </div>
 
                     <div class="input-group">
@@ -84,6 +78,54 @@
                 btn.textContent = 'VER';
             }
         }
+
+        // Manejo del registro por AJAX
+        document.getElementById('registerForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const alertBox = document.getElementById('alertMsg');
+            alertBox.style.display = 'none';
+            alertBox.className = 'alert-msg'; // Resetear clases de color
+
+            const formData = new FormData(this);
+
+            try {
+                const response = await fetch('/ACIDO/BACKPHP/index.php', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Éxito: Fondo verde
+                    alertBox.textContent = data.message || '¡Registro exitoso! Redirigiendo...';
+                    alertBox.classList.add('alert-success');
+                    alertBox.style.display = 'block';
+
+                    // Limpiar el formulario
+                    this.reset();
+
+                    // Redirigir al login tras 2 segundos
+                    setTimeout(() => {
+                        window.location.href = data.redirect || '/ACIDO/BACKPHP/index.php?action=login';
+                    }, 2000);
+                } else {
+                    // Error: Fondo rojo
+                    alertBox.textContent = data.message || 'Error al registrar el usuario.';
+                    alertBox.classList.add('alert-error');
+                    alertBox.style.display = 'block';
+                }
+            } catch (error) {
+                console.error(error);
+                alertBox.textContent = 'Ocurrió un problema al procesar la solicitud.';
+                alertBox.classList.add('alert-error');
+                alertBox.style.display = 'block';
+            }
+        });
     </script>
 </body>
 </html>
