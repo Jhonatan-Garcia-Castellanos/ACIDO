@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- Hoja de estilos principal -->
-    <link rel="stylesheet" href="/TAREA/BACKPHP/public/styles.css">
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
 </head>
 <body>
 
@@ -38,7 +38,7 @@
 
             <!-- Panel Derecho: Formulario de Registro -->
             <div class="form-panel">
-                <img src="/TAREA/BACKPHP/public/iconooo.png" alt="icon" class="logoaci">
+                <img src="/ACIDO/BACKPHP/public/iconooo.png" alt="icon" class="logoaci">
                 <h3>Crear Cuenta</h3>
                 <p class="subtitle">Ingresa tus datos para registrarte</p>
 
