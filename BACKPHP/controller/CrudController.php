@@ -1,6 +1,6 @@
 <?php
 // Usamos la ruta raíz del servidor local de XAMPP para evitar problemas de carpetas relativas
-require_once $_SERVER['DOCUMENT_ROOT'] . '/TAREA/BACKPHP/model/CrudModel.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/ACIDO/BACKPHP/model/CrudModel.php';
 
 class CrudController {
     private $model;

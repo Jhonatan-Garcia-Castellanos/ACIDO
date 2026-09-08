@@ -5,7 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Validar que el usuario haya iniciado sesión
 if (!isset($_SESSION["user"])) {
-    header("Location: /TAREA/BACKPHP/index.php?action=login");
+    header("Location: /ACIDO/BACKPHP/index.php?action=login");
     exit();
 }
 ?>
@@ -17,7 +17,7 @@ if (!isset($_SESSION["user"])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ÁCIDO COLOMBIA</title>
     <!-- Estilos generales y del dashboard -->
-    <link rel="stylesheet" href="/TAREA/BACKPHP/public/styles.css">
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
     <!-- Iconos de FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para las gráficas -->
@@ -31,7 +31,7 @@ if (!isset($_SESSION["user"])) {
         <!-- SIDEBAR (Barra Lateral Azul) -->
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <img src="/TAREA/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
+                <img src="/ACIDO/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
                 <span>ACIDO</span>
             </div>
 
@@ -46,7 +46,7 @@ if (!isset($_SESSION["user"])) {
 
             <div class="sidebar-heading">INTERFACE</div>
 
-            <a href="/TAREA/BACKPHP/index.php?action=crud" class="nav-item">
+            <a href="/ACIDO/BACKPHP/index.php?action=crud" class="nav-item">
                 <i class="fa-solid fa-gear"></i>
                 <span>CRUD</span>
             </a>
@@ -71,13 +71,13 @@ if (!isset($_SESSION["user"])) {
                 </button>
 
                 <div class="sidebar-submenu">
-                    <a href="/TAREA/BACKPHP/index.php?action=login">
+                    <a href="/ACIDO/BACKPHP/index.php?action=login">
                         <i class="fa-solid fa-right-to-bracket"></i> Iniciar Sesión
                     </a>
-                    <a href="/TAREA/BACKPHP/index.php?action=register">
+                    <a href="/ACIDO/BACKPHP/index.php?action=register">
                         <i class="fa-solid fa-user-plus"></i> Registro
                     </a>
-                    <a href="/TAREA/BACKPHP/index.php?action=crud">
+                    <a href="/ACIDO/BACKPHP/index.php?action=crud">
                         <i class="fa-solid fa-users"></i> Usuarios
                     </a>
                 </div>

@@ -46,7 +46,7 @@
                     <div class="error-msg"><?php echo $error; ?></div>
                 <?php endif; ?>
 
-                <form action="/TAREA/BACKPHP/index.php" method="POST">
+                <form action="/ACIDO/BACKPHP/index.php" method="POST">
                     <input type="hidden" name="action" value="register">
 
                     <div class="input-group">
@@ -66,7 +66,7 @@
                 </div>
 
                 <p class="signup-text">
-                    ¿Ya tienes una cuenta? <a href="/TAREA/BACKPHP/index.php?action=login">Inicia Sesión</a>
+                    ¿Ya tienes una cuenta? <a href="/ACIDO/BACKPHP/index.php?action=login">Inicia Sesión</a>
                 </p>
             </div>
         </div>

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login Acido</title>
-    <link rel="stylesheet" href="/TAREA/BACKPHP/public/styles.css">
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -29,7 +29,7 @@
 
             <!-- Panel Derecho: Formulario -->
             <div class="form-panel">
-                <img src="/TAREA/BACKPHP/public/iconooo.png" alt="icon" class="logoaci">
+                <img src="/ACIDO/BACKPHP/public/iconooo.png" alt="icon" class="logoaci">
                 <h3>Iniciar Sesión</h3>
                 <p class="subtitle">Ingresa tus credenciales para continuar</p>
 
@@ -37,7 +37,7 @@
                     <div class="error-msg"><?php echo $error; ?></div>
                 <?php endif; ?>
 
-                <form action="/TAREA/BACKPHP/index.php" method="POST">                    
+                <form action="/ACIDO/BACKPHP/index.php" method="POST">                    
                     <input type="hidden" name="action" value="login">
 
                     <div class="input-group">
@@ -64,7 +64,7 @@
                 </div>
 
                 <p class="signup-text">
-                    ¿No tienes una cuenta? <a href="/TAREA/BACKPHP/index.php?action=register">Regístrate</a>
+                    ¿No tienes una cuenta? <a href="/ACIDO/BACKPHP/index.php?action=register">Regístrate</a>
                 </p>
             </div>
         </div>

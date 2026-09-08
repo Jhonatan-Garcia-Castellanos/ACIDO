@@ -68,7 +68,7 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRUD Usuarios - ÁCIDO COLOMBIA</title>
-    <link rel="stylesheet" href="/TAREA/BACKPHP/public/styles.css">
+    <link rel="stylesheet" href="/ACIDO/BACKPHP/public/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
@@ -78,7 +78,7 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <img src="/TAREA/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
+                <img src="/ACIDO/BACKPHP/public/LOGO2.png" class="brand-icon" alt="Logo Ácido Colombia">
                 <span>ACIDO</span>
             </div>
 
