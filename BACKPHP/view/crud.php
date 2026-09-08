@@ -211,7 +211,7 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                             style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Correo
                                             Electrónico</label>
                                         <input type="email" class="crud-input" name="email" id="form-email"
-                                            placeholder="ejemplo@correo.com" required>
+                                            placeholder="Correo Electonico" required>
                                     </div>
                                     <div>
                                         <label
