@@ -100,8 +100,8 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="sidebar-heading">INTERFACE</div>
 
             <a href="index.php?action=crud" class="nav-item active">
-                <i class="fa-solid fa-gear"></i>
-                <span>CRUD</span>
+                <i class="fa-solid fa-users"></i>
+                <span>Usuarios</span>
             </a>
 
             <a href="#" class="nav-item">
@@ -128,9 +128,6 @@ $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </a>
                     <a href="index.php?action=register">
                         <i class="fa-solid fa-user-plus"></i> Registro
-                    </a>
-                    <a href="index.php?action=crud" class="active">
-                        <i class="fa-solid fa-users"></i> Usuarios
                     </a>
                 </div>
             </div>
