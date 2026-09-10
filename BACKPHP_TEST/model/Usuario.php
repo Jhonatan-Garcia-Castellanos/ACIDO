@@ -61,6 +61,9 @@ class Usuario
         if (!isset($row['nombre'])) {
             $row['nombre'] = $this->nombreDesdeEmail($email);
         }
+        if (!array_key_exists('Activo', $row)) {
+            $row['Activo'] = empty($row['deleted_at']) ? 1 : 0;
+        }
         return $row;
     }
 
@@ -118,8 +121,8 @@ class Usuario
     public function obtenerTodos()
     {
         try {
-            // No traer Password_Hash por seguridad. Alias para compatibilidad con vistas viejas.
-            $stmt = $this->db->query("SELECT ID_Usuario, Email, Rol, ID_Usuario AS id, Email AS email, Rol AS rol FROM usuario WHERE deleted_at IS NULL ORDER BY ID_Usuario DESC LIMIT 200");
+            // No traer Password_Hash por seguridad. Incluye inactivos para poder reactivar (legal: sin borrado).
+            $stmt = $this->db->query("SELECT ID_Usuario, Email, Rol, deleted_at, (deleted_at IS NULL) AS Activo, ID_Usuario AS id, Email AS email, Rol AS rol FROM usuario ORDER BY ID_Usuario DESC LIMIT 200");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$r) {
                 $r = $this->mapearFila($r);
@@ -137,7 +140,7 @@ class Usuario
             return false;
         }
         try {
-            $stmt = $this->db->prepare("SELECT ID_Usuario, Email, Rol FROM usuario WHERE ID_Usuario = :id AND deleted_at IS NULL LIMIT 1");
+            $stmt = $this->db->prepare("SELECT ID_Usuario, Email, Rol, deleted_at, (deleted_at IS NULL) AS Activo FROM usuario WHERE ID_Usuario = :id LIMIT 1");
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             $stmt->execute();
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -201,25 +204,29 @@ class Usuario
         }
     }
 
-    public function eliminarPorId($id)
+    public function cambiarEstado($id, $activo)
     {
         if (!ctype_digit((string)$id)) {
             return false;
         }
         try {
-            $this->db->beginTransaction();
-            $stmt = $this->db->prepare("DELETE FROM usuario WHERE ID_Usuario = :id");
-            $stmt->bindParam(":id", $id, PDO::PARAM_INT);
-            $ok = $stmt->execute();
-            $this->db->commit();
-            return $ok;
-        } catch (PDOException $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
+            if ((int)$activo === 1) {
+                $stmt = $this->db->prepare("UPDATE usuario SET deleted_at = NULL WHERE ID_Usuario = :id");
+            } else {
+                $stmt = $this->db->prepare("UPDATE usuario SET deleted_at = NOW() WHERE ID_Usuario = :id AND deleted_at IS NULL");
             }
-            error_log("Usuario::eliminarPorId: " . $e->getMessage());
+            $stmt->bindParam(":id", $id, PDO::PARAM_INT);
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("Usuario::cambiarEstado: " . $e->getMessage());
             return false;
         }
+    }
+
+    public function eliminarPorId($id)
+    {
+        // Por terminos legales NO hay borrado fisico: se inactiva.
+        return $this->cambiarEstado($id, 0);
     }
 
     // =========================================================================

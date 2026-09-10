@@ -46,7 +46,7 @@ class Venta
         if (empty($cart)) return ['items' => [], 'total' => 0];
         $ids = array_keys($cart);
         $place = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->db->prepare("SELECT ID_Producto, Nombre_Producto, Precio_Actual, Stock_Actual, Activo, Imagen_URL FROM producto WHERE ID_Producto IN ($place)");
+        $stmt = $this->db->prepare("SELECT ID_Producto, Nombre_Producto, Precio_Actual, Stock_Actual, deleted_at, (deleted_at IS NULL) AS Activo, Imagen_URL FROM producto WHERE ID_Producto IN ($place)");
         $stmt->execute($ids);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $items = [];
@@ -86,11 +86,11 @@ class Venta
                 if (!ctype_digit((string)$idProd)) continue;
                 $qty = (int)$qty;
                 if ($qty < 1 || $qty > 10) { $this->db->rollBack(); return ['error' => "Cantidad inválida (1-10) en producto $idProd"]; }
-                $p = $this->db->prepare("SELECT Precio_Actual, Stock_Actual, Activo FROM producto WHERE ID_Producto = :p LIMIT 1");
+                $p = $this->db->prepare("SELECT Precio_Actual, Stock_Actual, deleted_at FROM producto WHERE ID_Producto = :p LIMIT 1");
                 $p->execute([':p' => $idProd]);
                 $prod = $p->fetch(PDO::FETCH_ASSOC);
                 if (!$prod) { $this->db->rollBack(); return ['error' => "Producto $idProd no existe"]; }
-                if ((int)$prod['Activo'] !== 1) { $this->db->rollBack(); return ['error' => "Producto $idProd está inactivo"]; }
+                if (!empty($prod['deleted_at'])) { $this->db->rollBack(); return ['error' => "Producto $idProd está inactivo"]; }
                 // El trigger trg_bloquear_compra_sin_stock valida stock de nuevo; chequeo previo para mensaje claro
                 if ((int)$prod['Stock_Actual'] < $qty) { $this->db->rollBack(); return ['error' => "Sin stock suficiente para producto $idProd (hay {$prod['Stock_Actual']})"]; }
                 $precio = (float)$prod['Precio_Actual'];

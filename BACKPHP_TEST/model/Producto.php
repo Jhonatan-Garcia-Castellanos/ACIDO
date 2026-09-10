@@ -15,12 +15,12 @@ class Producto
     {
         try {
             $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
-                           p.ID_Categoria, p.ID_Proveedor, p.Imagen_URL, p.Activo,
+                           p.ID_Categoria, p.ID_Proveedor, p.Imagen_URL, p.deleted_at,
+                           (p.deleted_at IS NULL) AS Activo,
                            c.Nombre_Categoria, pr.Nombre_Empresa AS Proveedor
                     FROM producto p
                     LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
                     LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
-                    WHERE p.deleted_at IS NULL
                     ORDER BY p.ID_Producto DESC LIMIT 200";
             $stmt = $this->db->query($sql);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -34,7 +34,7 @@ class Producto
     {
         if (!ctype_digit((string)$id)) return false;
         try {
-            $stmt = $this->db->prepare("SELECT * FROM producto WHERE ID_Producto = :id AND deleted_at IS NULL LIMIT 1");
+            $stmt = $this->db->prepare("SELECT *, (deleted_at IS NULL) AS Activo FROM producto WHERE ID_Producto = :id LIMIT 1");
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetch(PDO::FETCH_ASSOC);
@@ -104,7 +104,7 @@ class Producto
                 $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr WHERE ID_Producto=:id AND deleted_at IS NULL");
                 $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             } else {
-                $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor, Activo) VALUES (:n,:p,:s,:c,:pr,1)");
+                $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor) VALUES (:n,:p,:s,:c,:pr)");
             }
             $stmt->bindParam(":n", $nombre);
             $stmt->bindParam(":p", $precio);
@@ -126,7 +126,7 @@ class Producto
                            p.Imagen_URL, c.Nombre_Categoria
                     FROM producto p
                     LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
-                    WHERE p.Activo = 1 AND p.Stock_Actual > 0
+                    WHERE p.deleted_at IS NULL AND p.Stock_Actual > 0
                     ORDER BY p.ID_Producto DESC LIMIT 100";
             return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -138,10 +138,12 @@ class Producto
     public function cambiarEstado($id, $activo)
     {
         if (!ctype_digit((string)$id)) return false;
-        $activo = ((int)$activo === 1) ? 1 : 0;
         try {
-            $stmt = $this->db->prepare("UPDATE producto SET Activo = :a WHERE ID_Producto = :id");
-            $stmt->bindParam(":a", $activo, PDO::PARAM_INT);
+            if ((int)$activo === 1) {
+                $stmt = $this->db->prepare("UPDATE producto SET deleted_at = NULL WHERE ID_Producto = :id");
+            } else {
+                $stmt = $this->db->prepare("UPDATE producto SET deleted_at = NOW() WHERE ID_Producto = :id AND deleted_at IS NULL");
+            }
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             return $stmt->execute();
         } catch (PDOException $e) {
