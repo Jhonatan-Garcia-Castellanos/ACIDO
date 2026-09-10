@@ -30,8 +30,10 @@ $rol = $u["Rol"] ?? $u["rol"] ?? 'Cliente';
                 </div>
             </div>
             <hr class="sidebar-divider">
+            <?php if (in_array($rol, ['Administrador','Empleado'], true)): ?>
             <a href="index.php?action=dashboard" class="nav-item"><i class="fa-solid fa-gauge-high"></i><span class="sidebar-text">Dashboard</span></a>
             <hr class="sidebar-divider">
+            <?php endif; ?>
             <div class="sidebar-heading sidebar-text">TIENDA</div>
             <a href="index.php?action=catalogo" class="nav-item"><i class="fa-solid fa-store"></i><span class="sidebar-text">Catálogo</span></a>
             <a href="index.php?action=carrito" class="nav-item"><i class="fa-solid fa-cart-shopping"></i><span class="sidebar-text">Carrito<?php $nc=array_sum($_SESSION['cart']??[]); if($nc>0) echo " ($nc)"; ?></span></a>

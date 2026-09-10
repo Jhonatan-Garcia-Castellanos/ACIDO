@@ -14,7 +14,7 @@ if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) $_SESSION['cart']
 // Matriz central: cambia aqui que rol ve que vista.
 // =========================================================================
 $ACCESS = [
-    'dashboard'   => ['Administrador', 'Empleado', 'Cliente'],
+    'dashboard'   => ['Administrador', 'Empleado'], // Cliente va directo a catálogo
     'crud'        => ['Administrador', 'Empleado'], // Ver + editar usuarios
     'crud_delete' => ['Administrador'], // Solo Admin inactiva/activa usuarios (sin borrado)
     'inventario'  => ['Administrador', 'Empleado'], // Gestion stock (sin Cliente)
@@ -24,6 +24,10 @@ $ACCESS = [
     'carrito'     => ['Administrador', 'Empleado', 'Cliente'],
     'ventas'      => ['Administrador', 'Empleado', 'Cliente'], // Admin/Empl ven todo, Cliente solo suyas
 ];
+
+function homeForRole($rol) {
+    return ($rol === 'Cliente') ? 'index.php?action=catalogo' : 'index.php?action=dashboard';
+}
 
 function currentRole() {
     return $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente';
@@ -61,8 +65,10 @@ function requireRole($vista) {
     syncRoleFromDb();
     $permitidos = $ACCESS[$vista] ?? [];
     if (!in_array(currentRole(), $permitidos, true)) {
-        // 403: sin permiso -> al dashboard con aviso
-        header("Location: index.php?action=dashboard&error=forbidden");
+        // 403: Cliente -> catálogo, resto -> dashboard
+        $home = homeForRole(currentRole());
+        $sep = (strpos($home, '?') !== false) ? '&' : '?';
+        header("Location: " . $home . $sep . "error=forbidden");
         exit();
     }
 }
@@ -167,14 +173,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                 "nombre" => $usuario["nombre"] ?? explode("@", $email)[0],
             ];
 
+            $homeOk = homeForRole($_SESSION["user"]["Rol"] ?? 'Cliente');
             if ($isAjax) {
                 while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'redirect' => 'index.php?action=dashboard']);
+                echo json_encode(['success' => true, 'redirect' => $homeOk]);
                 exit();
             }
 
-            header("Location: index.php?action=dashboard");
+            header("Location: " . $homeOk);
             exit();
         } else {
             if ($isAjax) {
@@ -393,9 +400,10 @@ if (isset($_GET["action"])) {
     }
 }
 
-// 3. CARGAR VISTA POR DEFECTO
+// 3. CARGAR VISTA POR DEFECTO (Cliente -> catálogo directo)
 if (isset($_SESSION["user"])) {
-    header("Location: index.php?action=dashboard");
+    syncRoleFromDb();
+    header("Location: " . homeForRole(currentRole()));
     exit();
 } else {
     header("Location: index.php?action=login");

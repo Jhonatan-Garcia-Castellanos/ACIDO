@@ -34,11 +34,13 @@ if (!isset($items)) { $items = []; }
                 </div>
             </div>
             <hr class="sidebar-divider">
+            <?php if (in_array($__rol, ['Administrador','Empleado'], true)): ?>
             <a href="index.php?action=dashboard" class="nav-item">
                 <i class="fa-solid fa-gauge-high"></i>
                 <span class="sidebar-text">Dashboard</span>
             </a>
             <hr class="sidebar-divider">
+            <?php endif; ?>
             <div class="sidebar-heading sidebar-text">TIENDA</div>
             <a href="index.php?action=catalogo" class="nav-item active">
                 <i class="fa-solid fa-store"></i>
