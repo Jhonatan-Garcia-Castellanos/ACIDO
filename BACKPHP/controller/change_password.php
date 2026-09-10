@@ -5,12 +5,11 @@ require_once __DIR__ . '/../model/Usuario.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Captura y limpieza de entradas desde el $_POST de la vista
     $email = trim($_POST['email'] ?? '');
-    $actualPassword = $_POST['actual_password'] ?? '';
     $nuevaPassword = $_POST['nueva_password'] ?? '';
     $confirmarPassword = $_POST['confirmar_password'] ?? '';
 
     // Validar que no existan campos vacíos
-    if (empty($email) || empty($actualPassword) || empty($nuevaPassword) || empty($confirmarPassword)) {
+    if (empty($email) || empty($nuevaPassword) || empty($confirmarPassword)) {
         header("Location: ../../view/change_password.php?error=" . urlencode("Todos los campos son obligatorios."));
         exit();
     }

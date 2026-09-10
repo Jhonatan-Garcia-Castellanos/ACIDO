@@ -57,7 +57,7 @@ class Usuario
     // =========================================================================
     // MÉTODO AGREGADO: CAMBIO DE CONTRASEÑA
     // =========================================================================
-    public function cambiarPassword($email, $actualPassword, $nuevaPassword)
+    public function cambiarPassword($email, $nuevaPassword)
     {
         // 1. Consultar usuario existente
         $query = "SELECT * FROM usuario WHERE email = :email";
@@ -71,7 +71,7 @@ class Usuario
         }
 
         // 2. Verificar contraseña actual
-        if (!password_verify($actualPassword, $user["password"])) {
+        if (!password_verify( $user["password"])) {
             return ["status" => false, "message" => "La co  ntraseña actual es incorrecta."];
         }
 
