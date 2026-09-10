@@ -1,0 +1,95 @@
+/* ===================================================
+   ESTILOS EXCLUSIVOS DEL CRUD DE USUARIOS
+=================================================== */
+.crud-container-box { max-width: 1200px; margin: 0 auto; }
+
+.crud-modern-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+    border: 1px solid #e3e6f0;
+    margin-bottom: 25px;
+    overflow: hidden;
+}
+
+.crud-modern-header {
+    background: linear-gradient(135deg, #1C3B4A, #004BA0);
+    color: white;
+    padding: 15px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.crud-form-body { padding: 20px; background: #ffffff; }
+
+.crud-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: #f8f9fc;
+    border: 1px solid #d1d3e2;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #2d3748;
+    outline: none;
+}
+
+.btn-crud-save {
+    background-color: #D48A3A;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.btn-crud-cancel {
+    background-color: #718096;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.crud-table { width: 100%; border-collapse: collapse; text-align: left; background: white; }
+
+.crud-table th {
+    background-color: #f8f9fc;
+    color: #4e73df;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    padding: 12px 18px;
+    border-bottom: 2px solid #e3e6f0;
+}
+
+.crud-table td { padding: 12px 18px; font-size: 12px; color: #5a5c69; border-bottom: 1px solid #e3e6f0; }
+
+.btn-action-edit {
+    background-color: #3182ce;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-action-delete {
+    background-color: #e53e3e;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+}
