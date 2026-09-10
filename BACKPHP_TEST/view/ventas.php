@@ -10,6 +10,7 @@ if (!isset($_SESSION["user"])) {
 $__rol = $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente';
 $__esGest = in_array($__rol, ['Administrador','Empleado'], true);
 if (!isset($ventas)) { $ventas = []; }
+if (!isset($resumenHoy)) { $resumenHoy = ['ventas'=>0,'ganancias'=>0,'ticket'=>0]; }
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -48,10 +49,59 @@ if (!isset($ventas)) { $ventas = []; }
         <main class="main-content">
             <header class="topbar">
                 <div class="search-bar"><input type="text" id="vSearch" placeholder="Buscar venta, cliente, factura..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
-                <div class="topbar-user"><div class="user-info"><span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? 'Usuario'); ?> (<?php echo htmlspecialchars($__rol); ?>)</span><div class="avatar"></div></div></div>
+                <div class="topbar-user">
+                    <div class="icon-badge">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="badge red">3+</span>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="fa-solid fa-envelope"></i>
+                        <span class="badge yellow">7</span>
+                    </div>
+                    <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
+                        <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
+                        <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
+                    </a>
+                    <div class="divider-vertical"></div>
+                    <div class="user-info-dropdown" style="position: relative;">
+                        <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
+                            <span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? 'Usuario'); ?> (<?php echo htmlspecialchars($__rol); ?>)</span>
+                            <div class="avatar"></div>
+                        </div>
+                        <div class="dropdown-menu-user" id="userDropdownMenu">
+                            <a href="index.php?action=profile" class="dropdown-user-item">
+                                <i class="fa-solid fa-user"></i> Ver Perfil
+                            </a>
+                            <a href="index.php?action=config" class="dropdown-user-item">
+                                <i class="fa-solid fa-gear"></i> Configuración
+                            </a>
+                            <div class="dropdown-user-divider"></div>
+                            <a href="index.php?action=logout" class="dropdown-user-item text-danger">
+                                <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </header>
             <div class="content-padding-crud">
-                <div class="page-header"><h2><?php echo $__esGest?'VENTAS':'MIS COMPRAS'; ?></h2></div>
+                <div class="page-header"><h2><?php echo $__esGest?'VENTAS':'MIS COMPRAS'; ?></h2><small style="color:#718096;">Registro diario · <?php echo date('Y-m-d'); ?></small></div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px;">
+                    <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #3182ce;">
+                        <small style="color:#4a5568;font-weight:700;"><?php echo $__esGest?'GANANCIAS HOY':'MIS COMPRAS HOY'; ?></small>
+                        <div style="font-size:24px;font-weight:800;color:#004BA0;">$<?php echo number_format($resumenHoy['ganancias'] ?? 0, 0, ',', '.'); ?></div>
+                        <small style="color:#a0aec0;">Suma automática de lo vendido hoy. Se reinicia cada día.</small>
+                    </div>
+                    <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #38a169;">
+                        <small style="color:#4a5568;font-weight:700;">VENTAS HOY</small>
+                        <div style="font-size:24px;font-weight:800;"><?php echo (int)($resumenHoy['ventas'] ?? 0); ?></div>
+                        <small style="color:#a0aec0;">N° de ventas con fecha de hoy.</small>
+                    </div>
+                    <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #d69e2e;">
+                        <small style="color:#4a5568;font-weight:700;">TICKET PROMEDIO HOY</small>
+                        <div style="font-size:24px;font-weight:800;">$<?php echo number_format($resumenHoy['ticket'] ?? 0, 0, ',', '.'); ?></div>
+                        <small style="color:#a0aec0;">Promedio por venta de hoy.</small>
+                    </div>
+                </div>
                 <div class="crud-modern-card">
                     <div class="crud-modern-header"><i class="fa-solid fa-receipt"></i><span>Historial (<?php echo count($ventas); ?>)</span></div>
                     <div style="overflow-x:auto;">
@@ -83,6 +133,8 @@ if (!isset($ventas)) { $ventas = []; }
     <script>
         const sb=document.getElementById('sidebar'),tb=document.getElementById('toggleSidebar');
         if(tb&&sb)tb.addEventListener('click',()=>sb.classList.toggle('collapsed'));
+        const ub=document.getElementById('userMenuBtn'),um=document.getElementById('userDropdownMenu');
+        if(ub&&um){ub.addEventListener('click',(e)=>{e.stopPropagation();um.classList.toggle('show');});document.addEventListener('click',(e)=>{if(!um.contains(e.target)&&!ub.contains(e.target))um.classList.remove('show');});}
         const s=document.getElementById('vSearch');
         if(s)s.addEventListener('input',function(){
             const q=this.value.toLowerCase();

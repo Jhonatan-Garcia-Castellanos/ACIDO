@@ -119,15 +119,17 @@ if (!isset($_SESSION["user"])) {
                         <i class="fa-solid fa-envelope"></i>
                         <span class="badge yellow">7</span>
                     </div>
+                    <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
+                        <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
+                        <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
+                    </a>
                     <div class="divider-vertical"></div>
-
                     <!-- Menú Desplegable con Usuario de Sesión BD -->
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
                             <span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? $_SESSION["user"]["email"] ?? 'Usuario Demo'); ?> (<?php echo htmlspecialchars($_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente'); ?>)</span>
                             <div class="avatar"></div>
                         </div>
-
                         <div class="dropdown-menu-user" id="userDropdownMenu">
                             <a href="index.php?action=profile" class="dropdown-user-item">
                                 <i class="fa-solid fa-user"></i> Ver Perfil

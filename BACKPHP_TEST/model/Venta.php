@@ -159,6 +159,25 @@ class Venta
         } catch (PDOException $e) { return []; }
     }
 
+    /** Resumen automático del día (se recalcula en cada carga). Respeta filtro cliente. */
+    public function resumenHoy($idCliente = null)
+    {
+        try {
+            $where = 'WHERE DATE(v.Fecha_Venta) = CURDATE()';
+            $params = [];
+            if ($idCliente !== null) { $where .= ' AND v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $sql = "SELECT COUNT(DISTINCT v.ID_Venta) AS ventas,
+                           COALESCE(SUM(dv.Cantidad * dv.Precio_Venta_Historico),0) AS ganancias,
+                           COALESCE(AVG(dv.Cantidad * dv.Precio_Venta_Historico),0) AS ticket
+                    FROM venta v LEFT JOIN detalle_venta dv ON dv.ID_Venta = v.ID_Venta
+                    $where";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $r = $stmt->fetch(PDO::FETCH_ASSOC);
+            return ['ventas' => (int)($r['ventas'] ?? 0), 'ganancias' => (float)($r['ganancias'] ?? 0), 'ticket' => (float)($r['ticket'] ?? 0)];
+        } catch (PDOException $e) { return ['ventas'=>0,'ganancias'=>0,'ticket'=>0]; }
+    }
+
     public function idClienteDeUsuario($idUsuario)
     {
         try {

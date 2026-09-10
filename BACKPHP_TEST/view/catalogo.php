@@ -72,6 +72,18 @@ if (!isset($items)) { $items = []; }
                     <button><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <div class="topbar-user">
+                    <div class="icon-badge">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="badge red">3+</span>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="fa-solid fa-envelope"></i>
+                        <span class="badge yellow">7</span>
+                    </div>
+                    <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
+                        <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
+                        <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
+                    </a>
                     <div class="divider-vertical"></div>
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
@@ -79,6 +91,13 @@ if (!isset($items)) { $items = []; }
                             <div class="avatar"></div>
                         </div>
                         <div class="dropdown-menu-user" id="userDropdownMenu">
+                            <a href="index.php?action=profile" class="dropdown-user-item">
+                                <i class="fa-solid fa-user"></i> Ver Perfil
+                            </a>
+                            <a href="index.php?action=config" class="dropdown-user-item">
+                                <i class="fa-solid fa-gear"></i> Configuración
+                            </a>
+                            <div class="dropdown-user-divider"></div>
                             <a href="index.php?action=logout" class="dropdown-user-item text-danger">
                                 <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
                             </a>

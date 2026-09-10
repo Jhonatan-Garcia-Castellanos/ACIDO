@@ -56,4 +56,12 @@ class VentaController {
         return $this->model->listarVentas($idCli);
     }
     public function detalleVenta($idVenta) { return $this->model->detalleVenta($idVenta); }
+    public function resumenHoyPara($rol, $idUsuario) {
+        if (in_array($rol, ['Administrador','Empleado'], true)) {
+            return $this->model->resumenHoy(null);
+        }
+        $idCli = $this->model->idClienteDeUsuario($idUsuario);
+        if (empty($idCli)) return ['ventas'=>0,'ganancias'=>0,'ticket'=>0];
+        return $this->model->resumenHoy($idCli);
+    }
 }

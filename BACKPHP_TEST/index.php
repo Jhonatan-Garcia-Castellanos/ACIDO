@@ -373,7 +373,22 @@ if (isset($_GET["action"])) {
         requireRole('ventas');
         $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
         $ventas = $ventaController->listarPara(currentRole(), $uid);
+        $resumenHoy = $ventaController->resumenHoyPara(currentRole(), $uid);
         require_once "view/ventas.php";
+        exit();
+    }
+
+    if ($_GET["action"] === "profile") {
+        requireLogin();
+        syncRoleFromDb();
+        require_once "view/perfil.php";
+        exit();
+    }
+
+    if ($_GET["action"] === "config") {
+        requireLogin();
+        syncRoleFromDb();
+        require_once "view/config.php";
         exit();
     }
 }
