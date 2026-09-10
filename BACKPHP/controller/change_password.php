@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Instancia del modelo y ejecución del cambio en MySQL
     $usuarioModel = new Usuario();
-    $resultado = $usuarioModel->cambiarPassword($email, $actualPassword, $nuevaPassword);
+    $resultado = $usuarioModel->cambiarPassword($email,  $nuevaPassword);
 
     if ($resultado['status']) {
         // Redirección exitosa a la pantalla de login con parámetro status

@@ -42,7 +42,7 @@
                     </div>
 
                     <div class="input-group">
-                        <input type="password" name="actual_password" placeholder="Contraseña actual" required>
+                        <input type="password"  placeholder="Contraseña actual" required>
                     </div>
 
                     <div class="input-group">
