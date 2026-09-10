@@ -72,7 +72,7 @@ class Usuario
 
         // 2. Verificar contraseña actual
         if (!password_verify($actualPassword, $user["password"])) {
-            return ["status" => false, "message" => "La contraseña actual es incorrecta."];
+            return ["status" => false, "message" => "La co  ntraseña actual es incorrecta."];
         }
 
         // 3. Encriptar y actualizar la nueva contraseña
