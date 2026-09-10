@@ -3,12 +3,14 @@ require_once "controller/UsuarioController.php";
 require_once "controller/ProductoController.php";
 require_once "controller/VentaController.php";
 require_once "controller/DashboardController.php";
+require_once "controller/PasswordResetController.php";
 
 session_start();
 $controller = new UsuarioController();
 $productoController = new ProductoController();
 $ventaController = new VentaController();
 $dashboardController = new DashboardController();
+$resetController = new PasswordResetController();
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) $_SESSION['cart'] = [];
 
 // =========================================================================
@@ -201,6 +203,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
 // cambio de contraseña
 
+// 1a. RECUPERACIÓN POR CORREO (público, sin login): solicita link y restablece con token
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_action"])) {
+    if ($_POST["reset_action"] === "request") {
+        $r = $resetController->solicitar(trim($_POST["email"] ?? ''));
+        // ?debug=1 muestra el link en pantalla cuando el SMTP aún no está configurado
+        if (!$r['sent'] && !empty($r['link']) && isset($_GET['debug'])) {
+            $debugLink = $r['link'];
+            require_once "view/forgot_password.php";
+            exit();
+        }
+        $sep = $r['sent'] ? 'info' : 'error';
+        header("Location: index.php?action=forgot_password&" . $sep . "=" . urlencode($r['message']));
+        exit();
+    }
+    if ($_POST["reset_action"] === "reset") {
+        $tok = $_POST["token"] ?? $_GET["token"] ?? '';
+        $res = $resetController->restablecer($tok, $_POST["nueva_password"] ?? '', $_POST["confirmar_password"] ?? '');
+        if ($res['ok']) {
+            header("Location: index.php?action=login&status=password_updated");
+        } else {
+            header("Location: index.php?action=reset_password&token=" . urlencode($tok) . "&error=" . urlencode($res['message']));
+        }
+        exit();
+    }
+}
+
 // 1b. CRUD: ver/editar = Admin+Empleado, eliminar = solo Admin
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_POST["crud_action"] === "save") {
     requireRole('crud');
@@ -275,6 +303,22 @@ if (isset($_GET["action"])) {
     }
     if ($_GET["action"] === "change_password") {
         require_once "view/change_password.php";
+        exit();
+    }
+    if ($_GET["action"] === "forgot_password") {
+        require_once "view/forgot_password.php";
+        exit();
+    }
+    if ($_GET["action"] === "reset_password") {
+        $tok = $_GET["token"] ?? '';
+        $row = $resetController->validarToken($tok);
+        if (!$row) {
+            header("Location: index.php?action=forgot_password&error=" . urlencode("Enlace inválido o vencido. Solicita uno nuevo."));
+            exit();
+        }
+        $resetToken = $tok;
+        $resetEmail = $row["Email"] ?? '';
+        require_once "view/reset_password.php";
         exit();
     }
 

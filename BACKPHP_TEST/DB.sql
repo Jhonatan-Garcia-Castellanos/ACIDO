@@ -236,6 +236,18 @@ CREATE TABLE alertas_sistema (
   Leido TINYINT(1) DEFAULT 0
 ) ENGINE=InnoDB;
 
+CREATE TABLE password_resets (
+  ID_Reset INT AUTO_INCREMENT PRIMARY KEY,
+  ID_Usuario INT NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expira_en DATETIME NOT NULL,
+  usado_en DATETIME NULL,
+  creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_reset_usuario FOREIGN KEY (ID_Usuario) REFERENCES usuario(ID_Usuario) ON DELETE CASCADE,
+  INDEX idx_reset_hash (token_hash),
+  INDEX idx_reset_usuario (ID_Usuario)
+) ENGINE=InnoDB;
+
 -- ==============================================================================
 -- 1.1 ÍNDICES COMPUESTOS CRÍTICOS
 -- ==============================================================================
