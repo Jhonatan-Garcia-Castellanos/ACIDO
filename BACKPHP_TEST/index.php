@@ -2,11 +2,13 @@
 require_once "controller/UsuarioController.php";
 require_once "controller/ProductoController.php";
 require_once "controller/VentaController.php";
+require_once "controller/DashboardController.php";
 
 session_start();
 $controller = new UsuarioController();
 $productoController = new ProductoController();
 $ventaController = new VentaController();
+$dashboardController = new DashboardController();
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) $_SESSION['cart'] = [];
 
 // =========================================================================
@@ -283,6 +285,7 @@ if (isset($_GET["action"])) {
 
     if ($_GET["action"] === "dashboard") {
         requireRole('dashboard');
+        $dashData = $dashboardController->datos();
         require_once "view/dashboard.php";
         exit();
     }

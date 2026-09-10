@@ -148,6 +148,13 @@ if (!isset($_SESSION["user"])) {
 
             <!-- CONTENIDO INTERNO -->
             <div class="content-padding">
+                <?php
+                $dashResumen = $dashData['resumen'] ?? ['ganancias_mes'=>0,'ventas_mes'=>0,'ganancias_anio'=>0,'ganancias_hoy'=>0,'ventas_hoy'=>0,'pedidos_pendientes'=>0,'stock_bajo'=>0];
+                $dashMes = $dashData['porMes'] ?? ['labels'=>[],'data'=>[]];
+                $dashCat = $dashData['porCategoria'] ?? ['labels'=>[],'data'=>[]];
+                $dashTop = $dashData['topProductos'] ?? [];
+                $dashDia = $dashData['porDia'] ?? ['labels'=>[],'data'=>[]];
+                ?>
                 <?php if (isset($_GET['error']) && $_GET['error'] === 'forbidden'): ?>
                     <div style="background:#fed7d7;color:#9b2c2c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;">
                         No tienes permiso para ver esa sección (solo Administrador).
@@ -163,45 +170,64 @@ if (!isset($_SESSION["user"])) {
                 <!-- METRICAS / TARJETAS SUPERIORES -->
                 <div class="cards-grid">
 
-                    <!-- Tarjeta Azul -->
+                    <!-- Tarjeta Azul: ganancia diaria -->
                     <div class="metric-card border-blue">
                         <div class="metric-info">
-                            <span class="metric-title text-blue">GANANCIAS (MENSUAL)</span>
-                            <span class="metric-value">$40,000</span>
+                            <span class="metric-title text-blue">GANANCIAS (DIARIA)</span>
+                            <span class="metric-value">$<?php echo number_format($dashResumen['ganancias_hoy'] ?? 0, 0, ',', '.'); ?></span>
+                            <small style="color:#858796;"><?php echo (int)($dashResumen['ventas_hoy'] ?? 0); ?> ventas hoy</small>
                         </div>
                         <i class="fa-solid fa-calendar metric-icon"></i>
                     </div>
 
-                    <!-- Tarjeta Verde -->
+                    <!-- Tarjeta Verde: ganancia mensual -->
                     <div class="metric-card border-green">
                         <div class="metric-info">
-                            <span class="metric-title text-green">GANANCIAS (ANUAL)</span>
-                            <span class="metric-value">$215,000</span>
+                            <span class="metric-title text-green">GANANCIAS (MENSUAL)</span>
+                            <span class="metric-value">$<?php echo number_format($dashResumen['ganancias_mes'] ?? 0, 0, ',', '.'); ?></span>
+                            <small style="color:#858796;"><?php echo (int)($dashResumen['ventas_mes'] ?? 0); ?> ventas este mes</small>
                         </div>
                         <i class="fa-solid fa-dollar-sign metric-icon"></i>
                     </div>
 
-                    <!-- Tarjeta Cyan (Con Barra de Progreso) -->
+                    <!-- Tarjeta Cyan: ventas de hoy -->
                     <div class="metric-card border-cyan">
                         <div class="metric-info" style="width: 100%;">
-                            <span class="metric-title text-cyan">TAREAS</span>
-                            <div class="progress-container">
-                                <span class="metric-value">50%</span>
-                                <div class="progress-bar-bg">
-                                    <div class="progress-bar-fill" style="width: 50%;"></div>
-                                </div>
-                            </div>
+                            <span class="metric-title text-cyan">VENTAS HOY</span>
+                            <span class="metric-value"><?php echo (int)($dashResumen['ventas_hoy'] ?? 0); ?></span>
+                            <small style="color:#858796;">ventas realizadas hoy</small>
                         </div>
                         <i class="fa-solid fa-clipboard-list metric-icon"></i>
                     </div>
 
-                    <!-- Tarjeta Amarilla -->
+                    <!-- Tarjeta Amarilla: ganancia anual -->
                     <div class="metric-card border-yellow">
                         <div class="metric-info">
-                            <span class="metric-title text-yellow">SOLICITUDES PENDIENTES</span>
-                            <span class="metric-value">18</span>
+                            <span class="metric-title text-yellow">GANANCIAS (ANUAL)</span>
+                            <span class="metric-value">$<?php echo number_format($dashResumen['ganancias_anio'] ?? 0, 0, ',', '.'); ?></span>
+                            <small style="color:#858796;">acumulado <?php echo date('Y'); ?></small>
                         </div>
-                        <i class="fa-solid fa-comments metric-icon"></i>
+                        <i class="fa-solid fa-chart-line metric-icon"></i>
+                    </div>
+
+                    <!-- Tarjeta stock bajo -->
+                    <div class="metric-card border-blue">
+                        <div class="metric-info" style="width: 100%;">
+                            <span class="metric-title text-blue">STOCK BAJO (&lt;10)</span>
+                            <span class="metric-value"><?php echo (int)($dashResumen['stock_bajo'] ?? 0); ?></span>
+                            <small style="color:#858796;">productos por reponer</small>
+                        </div>
+                        <i class="fa-solid fa-boxes-stacked metric-icon"></i>
+                    </div>
+
+                    <!-- Tarjeta pedidos pendientes -->
+                    <div class="metric-card border-green">
+                        <div class="metric-info" style="width: 100%;">
+                            <span class="metric-title text-green">PEDIDOS PENDIENTES</span>
+                            <span class="metric-value"><?php echo (int)($dashResumen['pedidos_pendientes'] ?? 0); ?></span>
+                            <small style="color:#858796;">preparando / en camino</small>
+                        </div>
+                        <i class="fa-solid fa-truck-fast metric-icon"></i>
                     </div>
 
                 </div>
@@ -223,11 +249,48 @@ if (!isset($_SESSION["user"])) {
                     <!-- Gráfica de Dona -->
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3>Fuentes de Ingresos</h3>
+                            <h3>Ingresos por Categoría</h3>
                             <i class="fa-solid fa-ellipsis-vertical"></i>
                         </div>
                         <div class="chart-body">
                             <canvas id="donutChart"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- SEGUNDA FILA: ventas diarias + top productos (datos reales) -->
+                <div class="charts-grid" style="margin-top:20px;">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Ventas últimos 7 días</h3>
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Top productos (v_top_productos)</h3>
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </div>
+                        <div class="chart-body" style="height:auto;max-height:300px;overflow:auto;">
+                            <?php if (!empty($dashTop)): ?>
+                            <table style="width:100%;font-size:13px;border-collapse:collapse;">
+                                <thead><tr style="color:#858796;text-align:left;"><th>Producto</th><th style="text-align:right;">Vendidos</th></tr></thead>
+                                <tbody>
+                                <?php foreach ($dashTop as $t): ?>
+                                    <tr style="border-top:1px solid #e3e6f0;">
+                                        <td style="padding:6px 0;"><?php echo htmlspecialchars($t['Nombre_Producto'] ?? ''); ?></td>
+                                        <td style="text-align:right;font-weight:700;"><?php echo (int)($t['Vendidos'] ?? 0); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <?php else: ?>
+                            <p style="color:#858796;font-size:13px;">Sin ventas registradas.</p>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -277,15 +340,21 @@ if (!isset($_SESSION["user"])) {
             });
         }
 
-        // --- 3. RENDERING DE GRÁFICAS (Chart.js) ---
+        // --- 3. RENDERING DE GRÁFICAS (Chart.js) — datos reales de la BD ---
+        const areaLabels = <?php echo json_encode($dashMes['labels'] ?? []); ?>;
+        const areaData = <?php echo json_encode($dashMes['data'] ?? []); ?>;
+        const donutLabels = <?php echo json_encode(!empty($dashCat['labels']) ? $dashCat['labels'] : ['Sin datos']); ?>;
+        const donutData = <?php echo json_encode(!empty($dashCat['data']) ? $dashCat['data'] : [1]); ?>;
+        const barLabels = <?php echo json_encode($dashDia['labels'] ?? []); ?>;
+        const barData = <?php echo json_encode($dashDia['data'] ?? []); ?>;
         const ctxArea = document.getElementById('areaChart').getContext('2d');
         new Chart(ctxArea, {
             type: 'line',
             data: {
-                labels: ['Ene', 'Mar', 'May', 'Jul', 'Sep', 'Nov'],
+                labels: areaLabels,
                 datasets: [{
                     label: 'Ganancias',
-                    data: [0, 10000, 5000, 15000, 10000, 20000, 15000, 25000, 20000, 30000, 25000, 40000],
+                    data: areaData,
                     borderColor: '#4e73df',
                     backgroundColor: 'rgba(78, 115, 223, 0.05)',
                     tension: 0.3,
@@ -305,11 +374,11 @@ if (!isset($_SESSION["user"])) {
         new Chart(ctxDonut, {
             type: 'doughnut',
             data: {
-                labels: ['Directo', 'Social', 'Referido'],
+                labels: donutLabels,
                 datasets: [{
-                    data: [55, 30, 15],
-                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
-                    hoverBackgroundColor: ['#2e59d9', '#17a673', '#2c9faf'],
+                    data: donutData,
+                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
+                    hoverBackgroundColor: ['#2e59d9', '#17a673', '#2c9faf', '#dda20a', '#be2617'],
                     borderWidth: 5
                 }]
             },
@@ -320,6 +389,27 @@ if (!isset($_SESSION["user"])) {
                 cutout: '80%'
             }
         });
+
+        const ctxBar = document.getElementById('barChart');
+        if (ctxBar) {
+            new Chart(ctxBar.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: barLabels,
+                    datasets: [{
+                        label: 'Ventas',
+                        data: barData,
+                        backgroundColor: '#1cc88a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
     </script>
 </body>
 
