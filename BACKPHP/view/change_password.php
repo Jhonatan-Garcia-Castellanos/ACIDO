@@ -40,11 +40,7 @@
                     <div class="input-group">
                         <input type="email" name="email" placeholder="Correo electrónico" required>
                     </div>
-
-                    <div class="input-group">
-                        <input type="password"  placeholder="Contraseña actual" required>
-                    </div>
-
+                    
                     <div class="input-group">
                         <input type="password" name="nueva_password" placeholder="Nueva contraseña" required>
                     </div>
