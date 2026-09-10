@@ -54,10 +54,18 @@ class UsuarioController {
     }
 
     public function eliminar($id) {
+        // Legal: inactivar, no borrar
         if (!ctype_digit((string)$id)) {
             return false;
         }
-        return $this->usuarioModel->eliminarPorId($id);
+        return $this->usuarioModel->cambiarEstado($id, 0);
+    }
+
+    public function cambiarEstado($id, $activo) {
+        if (!ctype_digit((string)$id)) {
+            return false;
+        }
+        return $this->usuarioModel->cambiarEstado($id, $activo);
     }
 }
 ?>

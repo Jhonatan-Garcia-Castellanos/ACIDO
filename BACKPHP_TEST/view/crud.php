@@ -90,17 +90,29 @@ if (!isset($registros)) {
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading sidebar-text">INTERFACE</div>
-
-            <a href="index.php?action=crud" class="nav-item active">
-                <i class="fa-solid fa-users"></i>
-                <span class="sidebar-text">Usuarios</span>
+            <div class="sidebar-heading sidebar-text">TIENDA</div>
+            <a href="index.php?action=catalogo" class="nav-item">
+                <i class="fa-solid fa-store"></i>
+                <span class="sidebar-text">Catálogo</span>
             </a>
-
+            <a href="index.php?action=carrito" class="nav-item">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span class="sidebar-text">Carrito<?php $nc=array_sum($_SESSION['cart']??[]); if($nc>0) echo " ($nc)"; ?></span>
+            </a>
+            <a href="index.php?action=ventas" class="nav-item">
+                <i class="fa-solid fa-receipt"></i>
+                <span class="sidebar-text">Ventas</span>
+            </a>
+            <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item">
                 <i class="fa-solid fa-boxes-stacked"></i>
                 <span class="sidebar-text">Inventario</span>
             </a>
+            <a href="index.php?action=crud" class="nav-item active">
+                <i class="fa-solid fa-users"></i>
+                <span class="sidebar-text">Usuarios</span>
+            </a>
+            <!-- Sidebar estándar -->
         </aside>
 
         <!-- MAIN CONTENT -->
@@ -226,6 +238,7 @@ if (!isset($registros)) {
                                         <th><b>Correo (Email)</b></th>
                                         <th><b>Nombre</b></th>
                                         <th><b>Rol</b></th>
+                                        <th><b>Estado</b></th>
                                         <th style="text-align: right;"><b>Acciones</b></th>
                                     </tr>
                                 </thead>
@@ -236,6 +249,9 @@ if (!isset($registros)) {
                                             $uemail = $row['Email'] ?? $row['email'] ?? '';
                                             $urol = $row['Rol'] ?? $row['rol'] ?? 'Cliente';
                                             $unombre = $row['nombre'] ?? explode('@', $uemail)[0] ?? '';
+                                            $uactivo = (int)($row['Activo'] ?? 1);
+                                            $selfId = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+                                            $isSelf = ((string)$uid === (string)$selfId);
                                         ?>
                                             <tr>
                                                 <td style="color: #4a5568; font-weight: bold;">
@@ -252,24 +268,37 @@ if (!isset($registros)) {
                                                     <span
                                                         style="background: #edf2f7; padding: 4px 8px; border-radius: 4px; color: #4a5568;"><?php echo htmlspecialchars($urol); ?></span>
                                                 </td>
+                                                <td>
+                                                    <?php if ($uactivo === 1): ?>
+                                                        <span style="background:#c6f6d5;color:#22543d;padding:4px 8px;border-radius:4px;font-weight:700;">Activo</span>
+                                                    <?php else: ?>
+                                                        <span style="background:#fed7d7;color:#9b2c2c;padding:4px 8px;border-radius:4px;font-weight:700;">Inactivo</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td style="text-align: right;">
                                                     <button type="button" class="btn-action-edit"
                                                         onclick="editarRegistro('<?php echo htmlspecialchars($uid, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($uemail, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($urol, ENT_QUOTES); ?>')">
                                                         <i class="fa-solid fa-pen-to-square"></i> Editar
                                                     </button>
-                                                    <?php if ($__isAdmin): ?>
-                                                    <a href="index.php?action=crud&delete_id=<?php echo urlencode($uid); ?>"
-                                                        class="btn-action-delete"
-                                                        onclick="return confirm('¿Estás seguro de eliminar este usuario?');">
-                                                        <i class="fa-solid fa-trash"></i> Eliminar
-                                                    </a>
+                                                    <?php if ($__isAdmin && !$isSelf): ?>
+                                                    <?php if ($uactivo === 1): ?>
+                                                    <button type="button" class="btn-action-delete"
+                                                        onclick="askToggleUser('index.php?action=crud&toggle_id=<?php echo urlencode($uid); ?>&estado=0', 'Inactivar usuario', '¿Quieres inactivar a <?php echo htmlspecialchars(str_replace("'", "", $uemail), ENT_QUOTES); ?>? No se borra por términos legales, solo se desactiva el acceso.')">
+                                                        <i class="fa-solid fa-ban"></i> Inactivar
+                                                    </button>
+                                                    <?php else: ?>
+                                                    <button type="button" class="btn-crud-save"
+                                                        onclick="askToggleUser('index.php?action=crud&toggle_id=<?php echo urlencode($uid); ?>&estado=1', 'Activar usuario', '¿Quieres reactivar a <?php echo htmlspecialchars(str_replace("'", "", $uemail), ENT_QUOTES); ?>? Volverá a tener acceso al sistema.')">
+                                                        <i class="fa-solid fa-check"></i> Activar
+                                                    </button>
+                                                    <?php endif; ?>
                                                     <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="5"
+                                            <td colspan="6"
                                                 style="text-align: center; color: #a0aec0; padding: 40px; font-style: italic;">
                                                 No hay usuarios registrados actualmente.
                                             </td>
@@ -353,7 +382,44 @@ if (!isset($registros)) {
                 }
             });
         }
+
+        // Modal personalizada ACIDO (inactivar/activar) - sin "localhost dice"
+        let confirmHref = '';
+        function askToggleUser(href, title, message) {
+            confirmHref = href;
+            document.getElementById('acidoModalTitle').innerText = title;
+            document.getElementById('acidoModalMsg').innerText = message;
+            var btn = document.getElementById('acidoModalConfirm');
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirmar';
+            btn.className = title.toLowerCase().includes('inactivar') ? 'btn-action-delete' : 'btn-crud-save';
+            document.getElementById('acidoModal').style.display = 'flex';
+        }
+        function closeAcidoModal() {
+            document.getElementById('acidoModal').style.display = 'none';
+            confirmHref = '';
+        }
+        function confirmAcidoModal() {
+            if (confirmHref) window.location.href = confirmHref;
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeAcidoModal();
+        });
     </script>
+    <div id="acidoModal" style="display:none;position:fixed;inset:0;background:rgba(28,59,74,.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeAcidoModal()">
+        <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#1C3B4A,#004BA0);color:#fff;padding:16px 20px;display:flex;align-items:center;gap:10px;">
+                <img src="/ACIDO/BACKPHP_TEST/public/img/LOGO2.png" alt="ACIDO" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:6px;padding:2px;">
+                <strong id="acidoModalTitle" style="font-size:15px;">Confirmar</strong>
+            </div>
+            <div style="padding:20px;color:#2d3748;font-size:14px;line-height:1.5;">
+                <p id="acidoModalMsg" style="margin:0;"></p>
+            </div>
+            <div style="padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn-crud-cancel" onclick="closeAcidoModal()">Cancelar</button>
+                <button type="button" id="acidoModalConfirm" class="btn-crud-save" onclick="confirmAcidoModal()">Confirmar</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

@@ -65,26 +65,39 @@ if (!isset($_SESSION["user"])) {
 
             <hr class="sidebar-divider">
 
-            <a href="#" class="nav-item active">
+            <a href="index.php?action=dashboard" class="nav-item active">
                 <i class="fa-solid fa-gauge-high"></i>
                 <span class="sidebar-text">Dashboard</span>
             </a>
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading sidebar-text">INTERFACE</div>
-
             <?php $__r = $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente'; ?>
+            <div class="sidebar-heading sidebar-text">TIENDA</div>
+            <a href="index.php?action=catalogo" class="nav-item">
+                <i class="fa-solid fa-store"></i>
+                <span class="sidebar-text">Catálogo</span>
+            </a>
+            <a href="index.php?action=carrito" class="nav-item">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span class="sidebar-text">Carrito<?php $nc=array_sum($_SESSION['cart']??[]); if($nc>0) echo " ($nc)"; ?></span>
+            </a>
+            <a href="index.php?action=ventas" class="nav-item">
+                <i class="fa-solid fa-receipt"></i>
+                <span class="sidebar-text"><?php echo in_array($__r,['Administrador','Empleado'],true)?'Ventas':'Mis compras'; ?></span>
+            </a>
             <?php if (in_array($__r, ['Administrador','Empleado'], true)): ?>
-            <a href="/ACIDO/BACKPHP_TEST/index.php?action=crud" class="nav-item">
+            <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
+            <a href="index.php?action=inventario" class="nav-item">
+                <i class="fa-solid fa-boxes-stacked"></i>
+                <span class="sidebar-text">Inventario</span>
+            </a>
+            <a href="index.php?action=crud" class="nav-item">
                 <i class="fa-solid fa-users"></i>
                 <span class="sidebar-text">Usuarios</span>
             </a>
             <?php endif; ?>
-            <a href="/ACIDO/BACKPHP_TEST/index.php?action=inventario" class="nav-item">
-                <i class="fa-solid fa-boxes-stacked"></i>
-                <span class="sidebar-text">Inventario</span>
-            </a>
+            <!-- Sidebar estándar -->
         </aside>
 
         <!-- CONTENIDO PRINCIPAL -->

@@ -48,6 +48,7 @@ CREATE TABLE usuario (
   Rol ENUM('Cliente', 'Empleado', 'Administrador') NOT NULL DEFAULT 'Cliente',
   ID_Empleado INT NULL UNIQUE,
   ID_Cliente INT NULL UNIQUE,
+  Activo TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (ID_Empleado) REFERENCES empleado(ID_Empleado) ON DELETE CASCADE,
   FOREIGN KEY (ID_Cliente) REFERENCES cliente(ID_Cliente) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -86,6 +87,7 @@ CREATE TABLE producto (
   ID_Proveedor INT NOT NULL,
   Imagen_URL VARCHAR(512) NULL,
   QR_Code_URL VARCHAR(512) NULL,
+  Activo TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (ID_Categoria) REFERENCES categoria(ID_Categoria),
   FOREIGN KEY (ID_Proveedor) REFERENCES proveedor(ID_Proveedor)
 ) ENGINE=InnoDB;

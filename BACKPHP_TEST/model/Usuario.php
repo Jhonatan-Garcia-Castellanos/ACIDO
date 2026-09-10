@@ -71,12 +71,15 @@ class Usuario
             return false;
         }
         try {
-            $query = "SELECT ID_Usuario, Email, Password_Hash, Rol FROM usuario WHERE Email = :email LIMIT 1";
+            $query = "SELECT ID_Usuario, Email, Password_Hash, Rol, Activo FROM usuario WHERE Email = :email LIMIT 1";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(":email", $email);
             $stmt->execute();
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($user && password_verify($password, $user["Password_Hash"])) {
+                if (isset($user["Activo"]) && (int)$user["Activo"] === 0) {
+                    return false; // Inactivo por terminos legales: no puede ingresar
+                }
                 unset($user["Password_Hash"]);
                 return $this->mapearFila($user);
             }
@@ -108,7 +111,7 @@ class Usuario
                 // Si la tabla no existe en DB temporal, ignorar
             }
             $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-            $stmt = $this->db->prepare("INSERT INTO usuario (Email, Password_Hash, Rol) VALUES (:email, :hash, :rol)");
+            $stmt = $this->db->prepare("INSERT INTO usuario (Email, Password_Hash, Rol, Activo) VALUES (:email, :hash, :rol, 1)");
             $stmt->bindParam(":email", $email);
             $stmt->bindParam(":hash", $hash);
             $stmt->bindParam(":rol", $rol);
@@ -127,7 +130,7 @@ class Usuario
     {
         try {
             // No traer Password_Hash por seguridad. Alias para compatibilidad con vistas viejas.
-            $stmt = $this->db->query("SELECT ID_Usuario, Email, Rol, ID_Usuario AS id, Email AS email, Rol AS rol FROM usuario ORDER BY ID_Usuario DESC LIMIT 200");
+            $stmt = $this->db->query("SELECT ID_Usuario, Email, Rol, Activo, ID_Usuario AS id, Email AS email, Rol AS rol FROM usuario ORDER BY ID_Usuario DESC LIMIT 200");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$r) {
                 $r = $this->mapearFila($r);
@@ -145,7 +148,7 @@ class Usuario
             return false;
         }
         try {
-            $stmt = $this->db->prepare("SELECT ID_Usuario, Email, Rol FROM usuario WHERE ID_Usuario = :id LIMIT 1");
+            $stmt = $this->db->prepare("SELECT ID_Usuario, Email, Rol, Activo FROM usuario WHERE ID_Usuario = :id LIMIT 1");
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             $stmt->execute();
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -214,36 +217,32 @@ class Usuario
         }
     }
 
-    public function eliminarPorId($id)
+    public function cambiarEstado($id, $activo)
     {
         if (!ctype_digit((string)$id)) {
             return false;
         }
+        $activo = ((int)$activo === 1) ? 1 : 0;
         try {
-            $this->db->beginTransaction();
-            $get = $this->db->prepare("SELECT Email FROM usuario WHERE ID_Usuario = :id LIMIT 1");
-            $get->bindParam(":id", $id, PDO::PARAM_INT);
-            $get->execute();
-            $row = $get->fetch(PDO::FETCH_ASSOC);
-            $stmt = $this->db->prepare("DELETE FROM usuario WHERE ID_Usuario = :id");
+            $stmt = $this->db->prepare("UPDATE usuario SET Activo = :a WHERE ID_Usuario = :id");
+            $stmt->bindParam(":a", $activo, PDO::PARAM_INT);
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
-            $ok = $stmt->execute();
-            if ($ok && $row) {
-                try {
-                    $del = $this->db->prepare("DELETE FROM control_accesos WHERE Email = :e");
-                    $del->execute([':e' => $row['Email']]);
-                } catch (PDOException $e) {
-                }
-            }
-            $this->db->commit();
-            return $ok;
+            return $stmt->execute();
         } catch (PDOException $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            error_log("Usuario::eliminarPorId: " . $e->getMessage());
+            error_log("Usuario::cambiarEstado: " . $e->getMessage());
             return false;
         }
+    }
+
+    public function eliminarPorId($id)
+    {
+        // Por terminos legales NO hay borrado fisico: se inactiva.
+        return $this->cambiarEstado($id, 0);
+    }
+
+    public function activarPorId($id)
+    {
+        return $this->cambiarEstado($id, 1);
     }
 
     // =========================================================================
