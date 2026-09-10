@@ -65,26 +65,39 @@ if (!isset($_SESSION["user"])) {
 
             <hr class="sidebar-divider">
 
-            <a href="#" class="nav-item active">
+            <a href="index.php?action=dashboard" class="nav-item active">
                 <i class="fa-solid fa-gauge-high"></i>
                 <span class="sidebar-text">Dashboard</span>
             </a>
 
             <hr class="sidebar-divider">
 
-            <div class="sidebar-heading sidebar-text">INTERFACE</div>
-
             <?php $__r = $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente'; ?>
+            <div class="sidebar-heading sidebar-text">TIENDA</div>
+            <a href="index.php?action=catalogo" class="nav-item">
+                <i class="fa-solid fa-store"></i>
+                <span class="sidebar-text">Catálogo</span>
+            </a>
+            <a href="index.php?action=carrito" class="nav-item">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span class="sidebar-text">Carrito<?php $nc=array_sum($_SESSION['cart']??[]); if($nc>0) echo " ($nc)"; ?></span>
+            </a>
+            <a href="index.php?action=ventas" class="nav-item">
+                <i class="fa-solid fa-receipt"></i>
+                <span class="sidebar-text"><?php echo in_array($__r,['Administrador','Empleado'],true)?'Ventas':'Mis compras'; ?></span>
+            </a>
             <?php if (in_array($__r, ['Administrador','Empleado'], true)): ?>
-            <a href="/ACIDO/BACKPHP_TEST/index.php?action=crud" class="nav-item">
+            <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
+            <a href="index.php?action=inventario" class="nav-item">
+                <i class="fa-solid fa-boxes-stacked"></i>
+                <span class="sidebar-text">Inventario</span>
+            </a>
+            <a href="index.php?action=crud" class="nav-item">
                 <i class="fa-solid fa-users"></i>
                 <span class="sidebar-text">Usuarios</span>
             </a>
             <?php endif; ?>
-            <a href="/ACIDO/BACKPHP_TEST/index.php?action=inventario" class="nav-item">
-                <i class="fa-solid fa-boxes-stacked"></i>
-                <span class="sidebar-text">Inventario</span>
-            </a>
+            <!-- Sidebar estándar -->
         </aside>
 
         <!-- CONTENIDO PRINCIPAL -->
@@ -106,15 +119,17 @@ if (!isset($_SESSION["user"])) {
                         <i class="fa-solid fa-envelope"></i>
                         <span class="badge yellow">7</span>
                     </div>
+                    <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
+                        <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
+                        <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
+                    </a>
                     <div class="divider-vertical"></div>
-
                     <!-- Menú Desplegable con Usuario de Sesión BD -->
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
                             <span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? $_SESSION["user"]["email"] ?? 'Usuario Demo'); ?> (<?php echo htmlspecialchars($_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente'); ?>)</span>
                             <div class="avatar"></div>
                         </div>
-
                         <div class="dropdown-menu-user" id="userDropdownMenu">
                             <a href="index.php?action=profile" class="dropdown-user-item">
                                 <i class="fa-solid fa-user"></i> Ver Perfil

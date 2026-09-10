@@ -1,9 +1,14 @@
-DROP DATABASE IF EXISTS plojecto;
-CREATE DATABASE plojecto DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE plojecto;
+/* ============================================================
+   DB.sql v2.0 — PROYECTO ACIDO
+   Mejoras: collation, control_accesos FK, soft deletes,
+   índices compuestos, particionado, vistas actualizadas
+   ============================================================ */
+DROP DATABASE IF EXISTS proyecto_acido;
+CREATE DATABASE proyecto_acido DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE proyecto_acido;
 
 -- ==============================================================================
--- 1. TABLAS BASE Y ESTRUCTURA RELACIONAL CORREGIDA (3NF)
+-- 1. TABLAS BASE Y ESTRUCTURA RELACIONAL (3NF)
 -- ==============================================================================
 
 CREATE TABLE departamento (
@@ -30,6 +35,7 @@ CREATE TABLE empleado (
   Apellidos VARCHAR(50) NOT NULL,
   ID_Cargo INT NOT NULL,
   ID_Ciudad INT NOT NULL,
+  deleted_at DATETIME NULL DEFAULT NULL,
   FOREIGN KEY (ID_Cargo) REFERENCES cargo(ID_Cargo),
   FOREIGN KEY (ID_Ciudad) REFERENCES ciudad(ID_Ciudad)
 ) ENGINE=InnoDB;
@@ -38,7 +44,8 @@ CREATE TABLE cliente (
   ID_Cliente INT AUTO_INCREMENT PRIMARY KEY,
   Nombres VARCHAR(50) NOT NULL,
   Apellidos VARCHAR(50) NOT NULL,
-  Telefono VARCHAR(15) NULL
+  Telefono VARCHAR(15) NULL,
+  deleted_at DATETIME NULL DEFAULT NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE usuario (
@@ -48,8 +55,19 @@ CREATE TABLE usuario (
   Rol ENUM('Cliente', 'Empleado', 'Administrador') NOT NULL DEFAULT 'Cliente',
   ID_Empleado INT NULL UNIQUE,
   ID_Cliente INT NULL UNIQUE,
+  deleted_at DATETIME NULL DEFAULT NULL,
   FOREIGN KEY (ID_Empleado) REFERENCES empleado(ID_Empleado) ON DELETE CASCADE,
   FOREIGN KEY (ID_Cliente) REFERENCES cliente(ID_Cliente) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE control_accesos (
+  ID_Control INT AUTO_INCREMENT PRIMARY KEY,
+  ID_Usuario INT NOT NULL UNIQUE,
+  Email VARCHAR(100) NOT NULL UNIQUE,
+  Intentos_Fallidos INT DEFAULT 0,
+  Ultimo_Intento DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  Bloqueado_Hasta DATETIME NULL,
+  FOREIGN KEY (ID_Usuario) REFERENCES usuario(ID_Usuario) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE libreta_direcciones (
@@ -86,6 +104,7 @@ CREATE TABLE producto (
   ID_Proveedor INT NOT NULL,
   Imagen_URL VARCHAR(512) NULL,
   QR_Code_URL VARCHAR(512) NULL,
+  deleted_at DATETIME NULL DEFAULT NULL,
   FOREIGN KEY (ID_Categoria) REFERENCES categoria(ID_Categoria),
   FOREIGN KEY (ID_Proveedor) REFERENCES proveedor(ID_Proveedor)
 ) ENGINE=InnoDB;
@@ -209,13 +228,6 @@ CREATE TABLE pqr (
   FOREIGN KEY (ID_Empleado) REFERENCES empleado(ID_Empleado)
 ) ENGINE=InnoDB;
 
-CREATE TABLE control_accesos (
-  Email VARCHAR(100) PRIMARY KEY,
-  Intentos_Fallidos INT DEFAULT 0,
-  Ultimo_Intento DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  Bloqueado_Hasta DATETIME NULL
-) ENGINE=InnoDB;
-
 CREATE TABLE alertas_sistema (
   ID_Alerta INT AUTO_INCREMENT PRIMARY KEY,
   Tipo VARCHAR(50) NOT NULL,
@@ -225,69 +237,214 @@ CREATE TABLE alertas_sistema (
 ) ENGINE=InnoDB;
 
 -- ==============================================================================
+-- 1.1 ÍNDICES COMPUESTOS CRÍTICOS
+-- ==============================================================================
+
+CREATE INDEX idx_venta_fecha_cliente ON venta(Fecha_Venta, ID_Cliente);
+CREATE INDEX idx_movimiento_producto_fecha ON movimiento_inventario(ID_Producto, Fecha_Movimiento);
+CREATE INDEX idx_alerta_tipo_fecha ON alertas_sistema(Tipo, Fecha_Creacion);
+CREATE INDEX idx_detalle_venta_venta ON detalle_venta(ID_Venta);
+CREATE INDEX idx_pago_venta ON pago(ID_Venta);
+CREATE INDEX idx_pedido_estado ON pedido(Estado_Pedido);
+CREATE INDEX idx_resena_producto ON resena_valoracion(ID_Producto);
+CREATE INDEX idx_pedido_ciudad ON pedido(Ciudad_Envio);
+CREATE INDEX idx_libreta_cliente_principal ON libreta_direcciones(ID_Cliente, Es_Principal);
+CREATE INDEX idx_cliente_deleted ON cliente(deleted_at);
+CREATE INDEX idx_empleado_deleted ON empleado(deleted_at);
+CREATE INDEX idx_producto_deleted ON producto(deleted_at);
+CREATE INDEX idx_usuario_deleted ON usuario(deleted_at);
+
+-- ==============================================================================
+-- 1.2 PARTICIONADO DE TABLAS DE ALTA ROTACIÓN
+-- ==============================================================================
+
+ALTER TABLE movimiento_inventario
+PARTITION BY RANGE COLUMNS(Fecha_Movimiento) (
+  PARTITION p2024_01 VALUES LESS THAN ('2024-02-01'),
+  PARTITION p2024_02 VALUES LESS THAN ('2024-03-01'),
+  PARTITION p2024_03 VALUES LESS THAN ('2024-04-01'),
+  PARTITION p2024_04 VALUES LESS THAN ('2024-05-01'),
+  PARTITION p2024_05 VALUES LESS THAN ('2024-06-01'),
+  PARTITION p2024_06 VALUES LESS THAN ('2024-07-01'),
+  PARTITION p2024_07 VALUES LESS THAN ('2024-08-01'),
+  PARTITION p2024_08 VALUES LESS THAN ('2024-09-01'),
+  PARTITION p2024_09 VALUES LESS THAN ('2024-10-01'),
+  PARTITION p2024_10 VALUES LESS THAN ('2024-11-01'),
+  PARTITION p2024_11 VALUES LESS THAN ('2024-12-01'),
+  PARTITION p2024_12 VALUES LESS THAN ('2025-01-01'),
+  PARTITION p2025_01 VALUES LESS THAN ('2025-02-01'),
+  PARTITION p2025_02 VALUES LESS THAN ('2025-03-01'),
+  PARTITION p2025_03 VALUES LESS THAN ('2025-04-01'),
+  PARTITION p2025_04 VALUES LESS THAN ('2025-05-01'),
+  PARTITION p2025_05 VALUES LESS THAN ('2025-06-01'),
+  PARTITION p2025_06 VALUES LESS THAN ('2025-07-01'),
+  PARTITION p2025_07 VALUES LESS THAN ('2025-08-01'),
+  PARTITION p2025_08 VALUES LESS THAN ('2025-09-01'),
+  PARTITION p2025_09 VALUES LESS THAN ('2025-10-01'),
+  PARTITION p2025_10 VALUES LESS THAN ('2025-11-01'),
+  PARTITION p2025_11 VALUES LESS THAN ('2025-12-01'),
+  PARTITION p2025_12 VALUES LESS THAN ('2026-01-01'),
+  PARTITION p2026_01 VALUES LESS THAN ('2026-02-01'),
+  PARTITION p2026_02 VALUES LESS THAN ('2026-03-01'),
+  PARTITION p2026_03 VALUES LESS THAN ('2026-04-01'),
+  PARTITION p2026_04 VALUES LESS THAN ('2026-05-01'),
+  PARTITION p2026_05 VALUES LESS THAN ('2026-06-01'),
+  PARTITION p2026_06 VALUES LESS THAN ('2026-07-01'),
+  PARTITION p2026_07 VALUES LESS THAN ('2026-08-01'),
+  PARTITION p2026_08 VALUES LESS THAN ('2026-09-01'),
+  PARTITION p2026_09 VALUES LESS THAN ('2026-10-01'),
+  PARTITION p2026_10 VALUES LESS THAN ('2026-11-01'),
+  PARTITION p2026_11 VALUES LESS THAN ('2026-12-01'),
+  PARTITION p2026_12 VALUES LESS THAN ('2027-01-01'),
+  PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+
+ALTER TABLE alertas_sistema
+PARTITION BY RANGE COLUMNS(Fecha_Creacion) (
+  PARTITION p2024_01 VALUES LESS THAN ('2024-02-01'),
+  PARTITION p2024_02 VALUES LESS THAN ('2024-03-01'),
+  PARTITION p2024_03 VALUES LESS THAN ('2024-04-01'),
+  PARTITION p2024_04 VALUES LESS THAN ('2024-05-01'),
+  PARTITION p2024_05 VALUES LESS THAN ('2024-06-01'),
+  PARTITION p2024_06 VALUES LESS THAN ('2024-07-01'),
+  PARTITION p2024_07 VALUES LESS THAN ('2024-08-01'),
+  PARTITION p2024_08 VALUES LESS THAN ('2024-09-01'),
+  PARTITION p2024_09 VALUES LESS THAN ('2024-10-01'),
+  PARTITION p2024_10 VALUES LESS THAN ('2024-11-01'),
+  PARTITION p2024_11 VALUES LESS THAN ('2024-12-01'),
+  PARTITION p2024_12 VALUES LESS THAN ('2025-01-01'),
+  PARTITION p2025_01 VALUES LESS THAN ('2025-02-01'),
+  PARTITION p2025_02 VALUES LESS THAN ('2025-03-01'),
+  PARTITION p2025_03 VALUES LESS THAN ('2025-04-01'),
+  PARTITION p2025_04 VALUES LESS THAN ('2025-05-01'),
+  PARTITION p2025_05 VALUES LESS THAN ('2025-06-01'),
+  PARTITION p2025_06 VALUES LESS THAN ('2025-07-01'),
+  PARTITION p2025_07 VALUES LESS THAN ('2025-08-01'),
+  PARTITION p2025_08 VALUES LESS THAN ('2025-09-01'),
+  PARTITION p2025_09 VALUES LESS THAN ('2025-10-01'),
+  PARTITION p2025_10 VALUES LESS THAN ('2025-11-01'),
+  PARTITION p2025_11 VALUES LESS THAN ('2025-12-01'),
+  PARTITION p2025_12 VALUES LESS THAN ('2026-01-01'),
+  PARTITION p2026_01 VALUES LESS THAN ('2026-02-01'),
+  PARTITION p2026_02 VALUES LESS THAN ('2026-03-01'),
+  PARTITION p2026_03 VALUES LESS THAN ('2026-04-01'),
+  PARTITION p2026_04 VALUES LESS THAN ('2026-05-01'),
+  PARTITION p2026_05 VALUES LESS THAN ('2026-06-01'),
+  PARTITION p2026_06 VALUES LESS THAN ('2026-07-01'),
+  PARTITION p2026_07 VALUES LESS THAN ('2026-08-01'),
+  PARTITION p2026_08 VALUES LESS THAN ('2026-09-01'),
+  PARTITION p2026_09 VALUES LESS THAN ('2026-10-01'),
+  PARTITION p2026_10 VALUES LESS THAN ('2026-11-01'),
+  PARTITION p2026_11 VALUES LESS THAN ('2026-12-01'),
+  PARTITION p2026_12 VALUES LESS THAN ('2027-01-01'),
+  PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+
+ALTER TABLE auditoria_precios
+PARTITION BY RANGE COLUMNS(Fecha_Cambio) (
+  PARTITION p2024_01 VALUES LESS THAN ('2024-02-01'),
+  PARTITION p2024_02 VALUES LESS THAN ('2024-03-01'),
+  PARTITION p2024_03 VALUES LESS THAN ('2024-04-01'),
+  PARTITION p2024_04 VALUES LESS THAN ('2024-05-01'),
+  PARTITION p2024_05 VALUES LESS THAN ('2024-06-01'),
+  PARTITION p2024_06 VALUES LESS THAN ('2024-07-01'),
+  PARTITION p2024_07 VALUES LESS THAN ('2024-08-01'),
+  PARTITION p2024_08 VALUES LESS THAN ('2024-09-01'),
+  PARTITION p2024_09 VALUES LESS THAN ('2024-10-01'),
+  PARTITION p2024_10 VALUES LESS THAN ('2024-11-01'),
+  PARTITION p2024_11 VALUES LESS THAN ('2024-12-01'),
+  PARTITION p2024_12 VALUES LESS THAN ('2025-01-01'),
+  PARTITION p2025_01 VALUES LESS THAN ('2025-02-01'),
+  PARTITION p2025_02 VALUES LESS THAN ('2025-03-01'),
+  PARTITION p2025_03 VALUES LESS THAN ('2025-04-01'),
+  PARTITION p2025_04 VALUES LESS THAN ('2025-05-01'),
+  PARTITION p2025_05 VALUES LESS THAN ('2025-06-01'),
+  PARTITION p2025_06 VALUES LESS THAN ('2025-07-01'),
+  PARTITION p2025_07 VALUES LESS THAN ('2025-08-01'),
+  PARTITION p2025_08 VALUES LESS THAN ('2025-09-01'),
+  PARTITION p2025_09 VALUES LESS THAN ('2025-10-01'),
+  PARTITION p2025_10 VALUES LESS THAN ('2025-11-01'),
+  PARTITION p2025_11 VALUES LESS THAN ('2025-12-01'),
+  PARTITION p2025_12 VALUES LESS THAN ('2026-01-01'),
+  PARTITION p2026_01 VALUES LESS THAN ('2026-02-01'),
+  PARTITION p2026_02 VALUES LESS THAN ('2026-03-01'),
+  PARTITION p2026_03 VALUES LESS THAN ('2026-04-01'),
+  PARTITION p2026_04 VALUES LESS THAN ('2026-05-01'),
+  PARTITION p2026_05 VALUES LESS THAN ('2026-06-01'),
+  PARTITION p2026_06 VALUES LESS THAN ('2026-07-01'),
+  PARTITION p2026_07 VALUES LESS THAN ('2026-08-01'),
+  PARTITION p2026_08 VALUES LESS THAN ('2026-09-01'),
+  PARTITION p2026_09 VALUES LESS THAN ('2026-10-01'),
+  PARTITION p2026_10 VALUES LESS THAN ('2026-11-01'),
+  PARTITION p2026_11 VALUES LESS THAN ('2026-12-01'),
+  PARTITION p2026_12 VALUES LESS THAN ('2027-01-01'),
+  PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+
+-- ==============================================================================
 -- 2. BLOQUE DE 50 VISTAS DEL SISTEMA
 -- ==============================================================================
 
 -- Módulo Administrativo y Ventas (1 a 15)
 CREATE OR REPLACE VIEW v_ventas_diarias AS SELECT DATE(Fecha_Venta) AS Fecha, COUNT(*) AS Total_Ventas FROM venta GROUP BY DATE(Fecha_Venta);
 CREATE OR REPLACE VIEW v_ventas_mensuales AS SELECT DATE_FORMAT(Fecha_Venta, '%Y-%m') AS Mes, COUNT(*) AS Total_Ventas FROM venta GROUP BY Mes;
-CREATE OR REPLACE VIEW v_top_productos AS SELECT p.Nombre_Producto, SUM(dv.Cantidad) AS Vendidos FROM detalle_venta dv JOIN producto p ON dv.ID_Producto = p.ID_Producto GROUP BY p.ID_Producto ORDER BY Vendidos DESC;
-CREATE OR REPLACE VIEW v_ingresos_categoria AS SELECT c.Nombre_Categoria, SUM(dv.Cantidad * dv.Precio_Venta_Historico) AS Total FROM detalle_venta dv JOIN producto p ON dv.ID_Producto = p.ID_Producto JOIN categoria c ON p.ID_Categoria = c.ID_Categoria GROUP BY c.ID_Categoria;
-CREATE OR REPLACE VIEW v_rendimiento_empleados AS SELECT e.Nombres, e.Apellidos, COUNT(v.ID_Venta) AS Atendidos FROM venta v JOIN empleado e ON v.ID_Empleado = e.ID_Empleado GROUP BY e.ID_Empleado;
+CREATE OR REPLACE VIEW v_top_productos AS SELECT p.Nombre_Producto, SUM(dv.Cantidad) AS Vendidos FROM detalle_venta dv JOIN producto p ON dv.ID_Producto = p.ID_Producto WHERE p.deleted_at IS NULL GROUP BY p.ID_Producto ORDER BY Vendidos DESC;
+CREATE OR REPLACE VIEW v_ingresos_categoria AS SELECT c.Nombre_Categoria, SUM(dv.Cantidad * dv.Precio_Venta_Historico) AS Total FROM detalle_venta dv JOIN producto p ON dv.ID_Producto = p.ID_Producto JOIN categoria c ON p.ID_Categoria = c.ID_Categoria WHERE p.deleted_at IS NULL GROUP BY c.ID_Categoria;
+CREATE OR REPLACE VIEW v_rendimiento_empleados AS SELECT e.Nombres, e.Apellidos, COUNT(v.ID_Venta) AS Atendidos FROM venta v JOIN empleado e ON v.ID_Empleado = e.ID_Empleado WHERE e.deleted_at IS NULL GROUP BY e.ID_Empleado;
 CREATE OR REPLACE VIEW v_auditoria_precios AS SELECT * FROM auditoria_precios ORDER BY Fecha_Cambio DESC;
-CREATE OR REPLACE VIEW v_clientes_top AS SELECT c.ID_Cliente, c.Nombres, c.Apellidos, COUNT(v.ID_Venta) AS Compras FROM cliente c JOIN venta v ON c.ID_Cliente = v.ID_Cliente GROUP BY c.ID_Cliente ORDER BY Compras DESC;
+CREATE OR REPLACE VIEW v_clientes_top AS SELECT c.ID_Cliente, c.Nombres, c.Apellidos, COUNT(v.ID_Venta) AS Compras FROM cliente c JOIN venta v ON c.ID_Cliente = v.ID_Cliente WHERE c.deleted_at IS NULL GROUP BY c.ID_Cliente ORDER BY Compras DESC;
 CREATE OR REPLACE VIEW v_metodos_pago_uso AS SELECT mp.Tipo_Metodo, COUNT(p.ID_Pago) AS Uso FROM pago p JOIN metodo_pago mp ON p.ID_Metodo = mp.ID_Metodo GROUP BY mp.ID_Metodo;
 CREATE OR REPLACE VIEW v_envios_pendientes AS SELECT * FROM pedido WHERE Estado_Pedido IN ('Preparando', 'En camino');
 CREATE OR REPLACE VIEW v_pedidos_entregados AS SELECT * FROM pedido WHERE Estado_Pedido = 'Entregado';
 CREATE OR REPLACE VIEW v_facturacion_global AS SELECT f.Numero_Factura, f.Fecha_Emision, SUM(p.Monto_Pagado) AS Total FROM factura f JOIN pago p ON f.ID_Venta = p.ID_Venta GROUP BY f.ID_Factura;
 CREATE OR REPLACE VIEW v_tickets_promedio AS SELECT AVG(Monto_Pagado) AS Promedio_Venta FROM pago;
-CREATE OR REPLACE VIEW v_ventas_por_ciudad AS SELECT ci.Nombre_Ciudad, COUNT(v.ID_Venta) AS Ventas FROM venta v JOIN cliente c ON v.ID_Cliente = c.ID_Cliente JOIN libreta_direcciones ld ON c.ID_Cliente = ld.ID_Cliente JOIN ciudad ci ON ld.Ciudad_Id = ci.ID_Ciudad WHERE ld.Es_Principal = 1 GROUP BY ci.ID_Ciudad;
+CREATE OR REPLACE VIEW v_ventas_por_ciudad AS SELECT ci.Nombre_Ciudad, COUNT(v.ID_Venta) AS Ventas FROM venta v JOIN cliente c ON v.ID_Cliente = c.ID_Cliente JOIN libreta_direcciones ld ON c.ID_Cliente = ld.ID_Cliente JOIN ciudad ci ON ld.Ciudad_Id = ci.ID_Ciudad WHERE ld.Es_Principal = 1 AND c.deleted_at IS NULL GROUP BY ci.ID_Ciudad;
 CREATE OR REPLACE VIEW v_impuestos_recaudados AS SELECT SUM(Monto_Pagado * 0.19) AS IVA_Total FROM pago;
 CREATE OR REPLACE VIEW v_cancelaciones_mes AS SELECT * FROM pedido WHERE Estado_Pedido = 'Cancelado';
 
 -- Módulo Cliente y Autogestión (16 a 30)
-CREATE OR REPLACE VIEW v_catalogo_optimizado AS SELECT ID_Producto, Nombre_Producto, Precio_Actual, Stock_Actual, Imagen_URL FROM producto WHERE Stock_Actual > 0;
-CREATE OR REPLACE VIEW v_catalogo_agotados AS SELECT ID_Producto, Nombre_Producto, Precio_Actual FROM producto WHERE Stock_Actual = 0;
+CREATE OR REPLACE VIEW v_catalogo_optimizado AS SELECT ID_Producto, Nombre_Producto, Precio_Actual, Stock_Actual, Imagen_URL FROM producto WHERE Stock_Actual > 0 AND deleted_at IS NULL;
+CREATE OR REPLACE VIEW v_catalogo_agotados AS SELECT ID_Producto, Nombre_Producto, Precio_Actual FROM producto WHERE Stock_Actual = 0 AND deleted_at IS NULL;
 CREATE OR REPLACE VIEW v_mis_pedidos_activos AS SELECT v.ID_Cliente, p.* FROM pedido p JOIN venta v ON p.ID_Venta = v.ID_Venta WHERE p.Estado_Pedido != 'Entregado';
 CREATE OR REPLACE VIEW v_mi_historial_compras AS SELECT v.ID_Cliente, v.ID_Venta, v.Fecha_Venta, f.Numero_Factura FROM venta v LEFT JOIN factura f ON v.ID_Venta = f.ID_Venta;
 CREATE OR REPLACE VIEW v_mis_direcciones AS SELECT * FROM libreta_direcciones;
 CREATE OR REPLACE VIEW v_mi_direccion_principal AS SELECT * FROM libreta_direcciones WHERE Es_Principal = 1;
-CREATE OR REPLACE VIEW v_mi_wishlist AS SELECT w.ID_Cliente, p.Nombre_Producto, p.Precio_Actual, IF(p.Stock_Actual > 0, 'Disponible', 'Agotado') AS Estado FROM lista_deseos w JOIN producto p ON w.ID_Producto = p.ID_Producto;
+CREATE OR REPLACE VIEW v_mi_wishlist AS SELECT w.ID_Cliente, p.Nombre_Producto, p.Precio_Actual, IF(p.Stock_Actual > 0, 'Disponible', 'Agotado') AS Estado FROM lista_deseos w JOIN producto p ON w.ID_Producto = p.ID_Producto WHERE p.deleted_at IS NULL;
 CREATE OR REPLACE VIEW v_mis_resenas AS SELECT * FROM resena_valoracion;
 CREATE OR REPLACE VIEW v_mis_pqrs AS SELECT * FROM pqr;
 CREATE OR REPLACE VIEW v_facturas_cliente AS SELECT v.ID_Cliente, f.* FROM factura f JOIN venta v ON f.ID_Venta = v.ID_Venta;
 CREATE OR REPLACE VIEW v_carrito_actual AS SELECT v.ID_Cliente, dv.* FROM detalle_venta dv JOIN venta v ON dv.ID_Venta = v.ID_Venta;
-CREATE OR REPLACE VIEW v_novedades AS SELECT * FROM producto ORDER BY ID_Producto DESC LIMIT 10;
-CREATE OR REPLACE VIEW v_ofertas AS SELECT * FROM producto WHERE Precio_Actual < 50000;
-CREATE OR REPLACE VIEW v_mejor_calificados AS SELECT p.Nombre_Producto, AVG(rv.Calificacion) AS Promedio FROM resena_valoracion rv JOIN producto p ON rv.ID_Producto = p.ID_Producto GROUP BY p.ID_Producto HAVING Promedio >= 4;
+CREATE OR REPLACE VIEW v_novedades AS SELECT * FROM producto WHERE deleted_at IS NULL ORDER BY ID_Producto DESC LIMIT 10;
+CREATE OR REPLACE VIEW v_ofertas AS SELECT * FROM producto WHERE Precio_Actual < 50000 AND deleted_at IS NULL;
+CREATE OR REPLACE VIEW v_mejor_calificados AS SELECT p.Nombre_Producto, AVG(rv.Calificacion) AS Promedio FROM resena_valoracion rv JOIN producto p ON rv.ID_Producto = p.ID_Producto WHERE p.deleted_at IS NULL GROUP BY p.ID_Producto HAVING Promedio >= 4;
 CREATE OR REPLACE VIEW v_mis_metodos_pago AS SELECT * FROM metodo_pago;
 
 -- Módulo Inventario y Logística (31 a 40)
-CREATE OR REPLACE VIEW v_inventario_general AS SELECT p.ID_Producto, p.Nombre_Producto, p.Stock_Actual, c.Nombre_Categoria FROM producto p JOIN categoria c ON p.ID_Categoria = c.ID_Categoria;
-CREATE OR REPLACE VIEW v_valorizacion_stock AS SELECT SUM(Stock_Actual * Precio_Actual) AS Valor_Total_Inventario FROM producto;
+CREATE OR REPLACE VIEW v_inventario_general AS SELECT p.ID_Producto, p.Nombre_Producto, p.Stock_Actual, c.Nombre_Categoria FROM producto p JOIN categoria c ON p.ID_Categoria = c.ID_Categoria WHERE p.deleted_at IS NULL;
+CREATE OR REPLACE VIEW v_valorizacion_stock AS SELECT SUM(Stock_Actual * Precio_Actual) AS Valor_Total_Inventario FROM producto WHERE deleted_at IS NULL;
 CREATE OR REPLACE VIEW v_proveedores_activos AS SELECT * FROM proveedor;
-CREATE OR REPLACE VIEW v_productos_por_proveedor AS SELECT pr.Nombre_Empresa, COUNT(p.ID_Producto) AS Total_Productos FROM producto p JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor GROUP BY pr.ID_Proveedor;
+CREATE OR REPLACE VIEW v_productos_por_proveedor AS SELECT pr.Nombre_Empresa, COUNT(p.ID_Producto) AS Total_Productos FROM producto p JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor WHERE p.deleted_at IS NULL GROUP BY pr.ID_Proveedor;
 CREATE OR REPLACE VIEW v_ajustes_kardex AS SELECT * FROM movimiento_inventario WHERE Tipo_Movimiento = 'Ajuste';
 CREATE OR REPLACE VIEW v_ciudades_cobertura AS SELECT * FROM ciudad;
 CREATE OR REPLACE VIEW v_departamentos_cobertura AS SELECT * FROM departamento;
 CREATE OR REPLACE VIEW v_rutas_envio AS SELECT p.ID_Pedido, c.Nombre_Ciudad, d.Nombre_Departamento FROM pedido p JOIN ciudad c ON p.Ciudad_Envio = c.ID_Ciudad JOIN departamento d ON c.ID_Departamento = d.ID_Departamento;
-CREATE OR REPLACE VIEW v_alertas_stock_cero AS SELECT * FROM producto WHERE Stock_Actual = 0;
+CREATE OR REPLACE VIEW v_alertas_stock_cero AS SELECT * FROM producto WHERE Stock_Actual = 0 AND deleted_at IS NULL;
 CREATE OR REPLACE VIEW v_lista_espera_activa AS SELECT * FROM lista_espera_stock WHERE Notificado = 0;
 
 -- Módulo Seguridad y Soporte (41 a 50)
-CREATE OR REPLACE VIEW v_usuarios_bloqueados AS SELECT * FROM control_accesos WHERE Bloqueado_Hasta > NOW();
-CREATE OR REPLACE VIEW v_intentos_fallidos AS SELECT * FROM control_accesos WHERE Intentos_Fallidos > 0;
+CREATE OR REPLACE VIEW v_usuarios_bloqueados AS SELECT ca.ID_Control, ca.ID_Usuario, ca.Intentos_Fallidos, ca.Ultimo_Intento, ca.Bloqueado_Hasta, u.Email FROM control_accesos ca JOIN usuario u ON ca.ID_Usuario = u.ID_Usuario WHERE ca.Bloqueado_Hasta > NOW();
+CREATE OR REPLACE VIEW v_intentos_fallidos AS SELECT ca.ID_Control, ca.ID_Usuario, ca.Intentos_Fallidos, ca.Ultimo_Intento, ca.Bloqueado_Hasta, u.Email FROM control_accesos ca JOIN usuario u ON ca.ID_Usuario = u.ID_Usuario WHERE ca.Intentos_Fallidos > 0;
 CREATE OR REPLACE VIEW v_log_errores AS SELECT * FROM alertas_sistema WHERE Tipo = 'ERROR';
-CREATE OR REPLACE VIEW v_auditoria_roles AS SELECT u.Email, u.Rol, e.Nombres FROM usuario u LEFT JOIN empleado e ON u.ID_Empleado = e.ID_Empleado;
-CREATE OR REPLACE VIEW v_sesiones_activas AS SELECT Email, Ultimo_Intento FROM control_accesos WHERE Ultimo_Intento >= NOW() - INTERVAL 15 MINUTE;
-CREATE OR REPLACE VIEW v_empleados_inactivos AS SELECT e.* FROM empleado e LEFT JOIN usuario u ON e.ID_Empleado = u.ID_Empleado WHERE u.ID_Usuario IS NULL;
-CREATE OR REPLACE VIEW v_clientes_inactivos AS SELECT c.* FROM cliente c LEFT JOIN venta v ON c.ID_Cliente = v.ID_Cliente WHERE v.ID_Venta IS NULL;
+CREATE OR REPLACE VIEW v_auditoria_roles AS SELECT u.Email, u.Rol, e.Nombres FROM usuario u LEFT JOIN empleado e ON u.ID_Empleado = e.ID_Empleado WHERE u.deleted_at IS NULL;
+CREATE OR REPLACE VIEW v_sesiones_activas AS SELECT ca.ID_Usuario, u.Email, ca.Ultimo_Intento FROM control_accesos ca JOIN usuario u ON ca.ID_Usuario = u.ID_Usuario WHERE ca.Ultimo_Intento >= NOW() - INTERVAL 15 MINUTE;
+CREATE OR REPLACE VIEW v_empleados_inactivos AS SELECT e.* FROM empleado e LEFT JOIN usuario u ON e.ID_Empleado = u.ID_Empleado WHERE u.ID_Usuario IS NULL AND e.deleted_at IS NULL;
+CREATE OR REPLACE VIEW v_clientes_inactivos AS SELECT c.* FROM cliente c LEFT JOIN venta v ON c.ID_Cliente = v.ID_Cliente WHERE v.ID_Venta IS NULL AND c.deleted_at IS NULL;
 CREATE OR REPLACE VIEW v_resenas_pendientes AS SELECT * FROM resena_valoracion WHERE Estado_Moderacion = 'Pendiente';
 CREATE OR REPLACE VIEW v_resenas_rechazadas AS SELECT * FROM resena_valoracion WHERE Estado_Moderacion = 'Rechazado';
 CREATE OR REPLACE VIEW v_pqrs_vencidas AS SELECT * FROM pqr WHERE Estado = 'Abierto' AND Fecha_Registro <= NOW() - INTERVAL 5 DAY;
 
 -- ==============================================================================
--- 3. BLOQUE DE 45 DISPARADORES (TRIGGERS)
+-- 3. BLOQUE DE DISPARADORES (TRIGGERS) — v2.0
 -- ==============================================================================
 
 DELIMITER $$
@@ -463,7 +620,7 @@ CREATE TRIGGER trg_sincronizar_ciudad BEFORE INSERT ON libreta_direcciones FOR E
     END IF;
 END$$
 
--- Seguridad y Usuarios (31 a 40)
+-- Seguridad y Usuarios (31 a 38) — trg_validar_fortaleza_clave ELIMINADA (redundante con BCRYPT en PHP)
 CREATE TRIGGER trg_bloqueo_5_intentos BEFORE UPDATE ON control_accesos FOR EACH ROW BEGIN
     IF NEW.Intentos_Fallidos >= 5 THEN
         SET NEW.Bloqueado_Hasta = NOW() + INTERVAL 15 MINUTE;
@@ -483,7 +640,7 @@ CREATE TRIGGER trg_hash_password_update BEFORE UPDATE ON usuario FOR EACH ROW BE
 END$$
 
 CREATE TRIGGER trg_email_unico_global BEFORE INSERT ON usuario FOR EACH ROW BEGIN
-    IF (SELECT COUNT(*) FROM usuario WHERE Email = NEW.Email) > 0 THEN
+    IF (SELECT COUNT(*) FROM usuario WHERE Email = NEW.Email AND deleted_at IS NULL) > 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Correo ya registrado.';
     END IF;
 END$$
@@ -501,13 +658,7 @@ CREATE TRIGGER trg_limpiar_sesiones BEFORE UPDATE ON control_accesos FOR EACH RO
 END$$
 
 CREATE TRIGGER trg_registrar_acceso AFTER INSERT ON usuario FOR EACH ROW BEGIN
-    INSERT INTO control_accesos (Email) VALUES (NEW.Email);
-END$$
-
-CREATE TRIGGER trg_validar_fortaleza_clave BEFORE INSERT ON usuario FOR EACH ROW BEGIN
-    IF CHAR_LENGTH(NEW.Password_Hash) < 8 THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Contraseña requiere mínimo 8 caracteres.';
-    END IF;
+    INSERT INTO control_accesos (ID_Usuario, Email) VALUES (NEW.ID_Usuario, NEW.Email);
 END$$
 
 CREATE TRIGGER trg_impedir_borrado_cliente BEFORE DELETE ON cliente FOR EACH ROW BEGIN
@@ -520,7 +671,7 @@ CREATE TRIGGER trg_auditar_alta_empleado AFTER INSERT ON empleado FOR EACH ROW B
     INSERT INTO alertas_sistema (Tipo, Mensaje) VALUES ('RRHH', CONCAT('Empleado registrado: ', NEW.Nombres, ' ', NEW.Apellidos));
 END$$
 
--- PQRS y Moderación (41 a 45)
+-- PQRS y Moderación (39 a 43)
 CREATE TRIGGER trg_unicidad_resena_cliente BEFORE INSERT ON resena_valoracion FOR EACH ROW BEGIN
     IF (SELECT COUNT(*) FROM resena_valoracion WHERE ID_Cliente = NEW.ID_Cliente AND ID_Producto = NEW.ID_Producto) > 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El cliente ya reseñó este producto.';

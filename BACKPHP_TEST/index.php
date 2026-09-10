@@ -1,22 +1,33 @@
 <?php
 require_once "controller/UsuarioController.php";
 require_once "controller/ProductoController.php";
+require_once "controller/VentaController.php";
 
 session_start();
 $controller = new UsuarioController();
 $productoController = new ProductoController();
+$ventaController = new VentaController();
+if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) $_SESSION['cart'] = [];
 
 // =========================================================================
 // RBAC - Control de acceso por rol (DB.sql: Cliente, Empleado, Administrador)
 // Matriz central: cambia aqui que rol ve que vista.
 // =========================================================================
 $ACCESS = [
-    'dashboard'   => ['Administrador', 'Empleado', 'Cliente'],
+    'dashboard'   => ['Administrador', 'Empleado'], // Cliente va directo a catálogo
     'crud'        => ['Administrador', 'Empleado'], // Ver + editar usuarios
-    'crud_delete' => ['Administrador'], // Solo Admin elimina usuarios
-    'inventario'  => ['Administrador', 'Empleado', 'Cliente'], // Ver stock (todos)
+    'crud_delete' => ['Administrador'], // Solo Admin inactiva/activa usuarios (sin borrado)
+    'inventario'  => ['Administrador', 'Empleado'], // Gestion stock (sin Cliente)
     'inventario_save' => ['Administrador', 'Empleado'], // Crear/editar stock
+    'inventario_estado' => ['Administrador'], // Solo Admin inactiva/activa productos
+    'catalogo'    => ['Administrador', 'Empleado', 'Cliente'], // Vitrina para Cliente
+    'carrito'     => ['Administrador', 'Empleado', 'Cliente'],
+    'ventas'      => ['Administrador', 'Empleado', 'Cliente'], // Admin/Empl ven todo, Cliente solo suyas
 ];
+
+function homeForRole($rol) {
+    return ($rol === 'Cliente') ? 'index.php?action=catalogo' : 'index.php?action=dashboard';
+}
 
 function currentRole() {
     return $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente';
@@ -54,8 +65,10 @@ function requireRole($vista) {
     syncRoleFromDb();
     $permitidos = $ACCESS[$vista] ?? [];
     if (!in_array(currentRole(), $permitidos, true)) {
-        // 403: sin permiso -> al dashboard con aviso
-        header("Location: index.php?action=dashboard&error=forbidden");
+        // 403: Cliente -> catálogo, resto -> dashboard
+        $home = homeForRole(currentRole());
+        $sep = (strpos($home, '?') !== false) ? '&' : '?';
+        header("Location: " . $home . $sep . "error=forbidden");
         exit();
     }
 }
@@ -160,14 +173,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                 "nombre" => $usuario["nombre"] ?? explode("@", $email)[0],
             ];
 
+            $homeOk = homeForRole($_SESSION["user"]["Rol"] ?? 'Cliente');
             if ($isAjax) {
                 while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'redirect' => 'index.php?action=dashboard']);
+                echo json_encode(['success' => true, 'redirect' => $homeOk]);
                 exit();
             }
 
-            header("Location: index.php?action=dashboard");
+            header("Location: " . $homeOk);
             exit();
         } else {
             if ($isAjax) {
@@ -211,12 +225,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_P
     exit();
 }
 
-// 2. Borrar = solo Admin
+// 2. Inactivar/Activar usuario = Admin (Empleado no cambia estado). Sin borrado fisico por ley.
+if (isset($_GET["toggle_id"])) {
+    requireRole('crud_delete');
+    $tid = $_GET["toggle_id"];
+    $est = $_GET["estado"] ?? '0';
+    if (ctype_digit((string)$tid) && ($est === '0' || $est === '1')) {
+        // No permitir auto-inactivarse
+        $selfId = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        if ((string)$tid !== (string)$selfId) {
+            $controller->cambiarEstado($tid, $est);
+        }
+    }
+    header("Location: index.php?action=crud");
+    exit();
+}
+// Compat: delete_id antiguo ahora inactiva (no borra)
 if (isset($_GET["delete_id"])) {
     requireRole('crud_delete');
     $delId = $_GET["delete_id"];
     if (ctype_digit((string)$delId)) {
-        $controller->eliminar($delId);
+        $selfId = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        if ((string)$delId !== (string)$selfId) {
+            $controller->cambiarEstado($delId, 0);
+        }
     }
     header("Location: index.php?action=crud");
     exit();
@@ -274,6 +306,17 @@ if (isset($_GET["action"])) {
             header("Location: index.php?action=inventario");
             exit();
         }
+        // Inactivar/Activar producto (solo Admin). Sin borrado fisico: trigger lo bloquea.
+        if (isset($_GET["inv_toggle"])) {
+            requireRole('inventario_estado');
+            $pid = $_GET["inv_toggle"];
+            $est = $_GET["estado"] ?? '0';
+            if (ctype_digit((string)$pid) && ($est === '0' || $est === '1')) {
+                $productoController->cambiarEstado($pid, $est);
+            }
+            header("Location: index.php?action=inventario");
+            exit();
+        }
         requireRole('inventario');
         $productos = $productoController->listar();
         $categorias = $productoController->categorias();
@@ -282,11 +325,85 @@ if (isset($_GET["action"])) {
         require_once "view/inventario.php";
         exit();
     }
+
+    if ($_GET["action"] === "catalogo") {
+        requireRole('catalogo');
+        // Agregar al carrito desde catálogo
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"]) && $_POST["cart_action"] === "add") {
+            $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+            header("Location: index.php?action=catalogo");
+            exit();
+        }
+        $items = $productoController->catalogo();
+        require_once "view/catalogo.php";
+        exit();
+    }
+
+    if ($_GET["action"] === "carrito") {
+        requireRole('carrito');
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"])) {
+            if ($_POST["cart_action"] === "add") {
+                $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+                header("Location: index.php?action=carrito");
+                exit();
+            }
+            if ($_POST["cart_action"] === "update") {
+                $ventaController->actualizar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+                header("Location: index.php?action=carrito");
+                exit();
+            }
+            if ($_POST["cart_action"] === "remove") {
+                $ventaController->quitar($_POST["id"] ?? '');
+                header("Location: index.php?action=carrito");
+                exit();
+            }
+            if ($_POST["cart_action"] === "checkout") {
+                $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+                $res = $ventaController->checkout($uid, $_POST["id_metodo"] ?? '');
+                if (isset($res['ID_Venta'])) {
+                    $url = "index.php?action=carrito&ok=" . $res['ID_Venta'];
+                    if (!empty($res['factura'])) $url .= "&fac=" . urlencode($res['factura']);
+                    header("Location: " . $url);
+                    exit();
+                }
+                header("Location: index.php?action=carrito&error=" . urlencode($res['error'] ?? 'No se pudo comprar'));
+                exit();
+            }
+        }
+        $cartData = $ventaController->detalle();
+        $metodos = $ventaController->metodos();
+        require_once "view/carrito.php";
+        exit();
+    }
+
+    if ($_GET["action"] === "ventas") {
+        requireRole('ventas');
+        $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        $ventas = $ventaController->listarPara(currentRole(), $uid);
+        $resumenHoy = $ventaController->resumenHoyPara(currentRole(), $uid);
+        require_once "view/ventas.php";
+        exit();
+    }
+
+    if ($_GET["action"] === "profile") {
+        requireLogin();
+        syncRoleFromDb();
+        require_once "view/perfil.php";
+        exit();
+    }
+
+    if ($_GET["action"] === "config") {
+        requireLogin();
+        syncRoleFromDb();
+        require_once "view/config.php";
+        exit();
+    }
 }
 
-// 3. CARGAR VISTA POR DEFECTO
+// 3. CARGAR VISTA POR DEFECTO (Cliente -> catálogo directo)
 if (isset($_SESSION["user"])) {
-    header("Location: index.php?action=dashboard");
+    syncRoleFromDb();
+    header("Location: " . homeForRole(currentRole()));
     exit();
 } else {
     header("Location: index.php?action=login");
