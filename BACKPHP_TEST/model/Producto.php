@@ -20,6 +20,7 @@ class Producto
                     FROM producto p
                     LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
                     LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
+                    WHERE p.deleted_at IS NULL
                     ORDER BY p.ID_Producto DESC LIMIT 200";
             $stmt = $this->db->query($sql);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -33,7 +34,7 @@ class Producto
     {
         if (!ctype_digit((string)$id)) return false;
         try {
-            $stmt = $this->db->prepare("SELECT * FROM producto WHERE ID_Producto = :id LIMIT 1");
+            $stmt = $this->db->prepare("SELECT * FROM producto WHERE ID_Producto = :id AND deleted_at IS NULL LIMIT 1");
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetch(PDO::FETCH_ASSOC);
@@ -60,15 +61,28 @@ class Producto
     public function resumen()
     {
         try {
-            $val = $this->db->query("SELECT SUM(Stock_Actual * Precio_Actual) AS total FROM producto")->fetch(PDO::FETCH_ASSOC);
-            $cero = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual = 0")->fetch(PDO::FETCH_ASSOC);
-            $bajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual > 0 AND Stock_Actual < 10")->fetch(PDO::FETCH_ASSOC);
+            $val = $this->db->query("SELECT SUM(Stock_Actual * Precio_Actual) AS total FROM producto WHERE deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
+            $cero = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual = 0 AND deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
+            $bajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual > 0 AND Stock_Actual < 10 AND deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
             return [
                 'valorizacion' => $val['total'] ?? 0,
                 'agotados' => $cero['c'] ?? 0,
                 'stock_bajo' => $bajo['c'] ?? 0,
             ];
         } catch (PDOException $e) { return ['valorizacion'=>0,'agotados'=>0,'stock_bajo'=>0]; }
+    }
+
+    public function eliminar($id)
+    {
+        if (!ctype_digit((string)$id)) return false;
+        try {
+            $stmt = $this->db->prepare("UPDATE producto SET deleted_at = NOW() WHERE ID_Producto = :id AND deleted_at IS NULL");
+            $stmt->bindParam(":id", $id, PDO::PARAM_INT);
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("Producto::eliminar: " . $e->getMessage());
+            return false;
+        }
     }
 
     public function guardar($datos)
@@ -87,7 +101,7 @@ class Producto
         try {
             if (!empty($id)) {
                 if (!ctype_digit($id)) return false;
-                $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr WHERE ID_Producto=:id");
+                $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr WHERE ID_Producto=:id AND deleted_at IS NULL");
                 $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             } else {
                 $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor) VALUES (:n,:p,:s,:c,:pr)");

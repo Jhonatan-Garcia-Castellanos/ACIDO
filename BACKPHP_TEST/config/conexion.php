@@ -2,7 +2,7 @@
 // config/conexion.php
 class Conexion {
     private $host = "localhost";
-    private $dbname = "plojecto";
+    private $dbname = "proyecto_acido";
     private $user = "root";
     private $password = "";
     public $conn;
