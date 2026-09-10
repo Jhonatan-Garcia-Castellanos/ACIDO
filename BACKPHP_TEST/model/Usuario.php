@@ -71,15 +71,12 @@ class Usuario
             return false;
         }
         try {
-            $query = "SELECT ID_Usuario, Email, Password_Hash, Rol, Activo FROM usuario WHERE Email = :email LIMIT 1";
+            $query = "SELECT ID_Usuario, Email, Password_Hash, Rol FROM usuario WHERE Email = :email AND deleted_at IS NULL LIMIT 1";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(":email", $email);
             $stmt->execute();
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($user && password_verify($password, $user["Password_Hash"])) {
-                if (isset($user["Activo"]) && (int)$user["Activo"] === 0) {
-                    return false; // Inactivo por terminos legales: no puede ingresar
-                }
                 unset($user["Password_Hash"]);
                 return $this->mapearFila($user);
             }
@@ -98,26 +95,18 @@ class Usuario
             return false;
         }
         try {
-            $checkStmt = $this->db->prepare("SELECT 1 FROM usuario WHERE Email = :email LIMIT 1");
+            $checkStmt = $this->db->prepare("SELECT 1 FROM usuario WHERE Email = :email AND deleted_at IS NULL LIMIT 1");
             $checkStmt->execute([':email' => $email]);
             if ($checkStmt->fetch()) {
                 return false;
             }
-            // Limpia huerfano en control_accesos (el trigger trg_registrar_acceso hace INSERT y fallaria si quedo Email huerfano tras un DELETE)
-            try {
-                $clean = $this->db->prepare("DELETE FROM control_accesos WHERE Email = :email");
-                $clean->execute([':email' => $email]);
-            } catch (PDOException $e) {
-                // Si la tabla no existe en DB temporal, ignorar
-            }
             $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-            $stmt = $this->db->prepare("INSERT INTO usuario (Email, Password_Hash, Rol, Activo) VALUES (:email, :hash, :rol, 1)");
+            $stmt = $this->db->prepare("INSERT INTO usuario (Email, Password_Hash, Rol) VALUES (:email, :hash, :rol)");
             $stmt->bindParam(":email", $email);
             $stmt->bindParam(":hash", $hash);
             $stmt->bindParam(":rol", $rol);
             return $stmt->execute();
         } catch (PDOException $e) {
-            // 23000 duplicado (UNIQUE + trg_email_unico_global SIGNAL 45000) o email invalido del trigger
             error_log("Usuario::registrar: " . $e->getMessage());
             return false;
         }
@@ -130,7 +119,7 @@ class Usuario
     {
         try {
             // No traer Password_Hash por seguridad. Alias para compatibilidad con vistas viejas.
-            $stmt = $this->db->query("SELECT ID_Usuario, Email, Rol, Activo, ID_Usuario AS id, Email AS email, Rol AS rol FROM usuario ORDER BY ID_Usuario DESC LIMIT 200");
+            $stmt = $this->db->query("SELECT ID_Usuario, Email, Rol, ID_Usuario AS id, Email AS email, Rol AS rol FROM usuario WHERE deleted_at IS NULL ORDER BY ID_Usuario DESC LIMIT 200");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$r) {
                 $r = $this->mapearFila($r);
@@ -148,7 +137,7 @@ class Usuario
             return false;
         }
         try {
-            $stmt = $this->db->prepare("SELECT ID_Usuario, Email, Rol, Activo FROM usuario WHERE ID_Usuario = :id LIMIT 1");
+            $stmt = $this->db->prepare("SELECT ID_Usuario, Email, Rol FROM usuario WHERE ID_Usuario = :id AND deleted_at IS NULL LIMIT 1");
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             $stmt->execute();
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -170,7 +159,7 @@ class Usuario
         }
         try {
             // Evita violar UNIQUE Email de otro id
-            $chk = $this->db->prepare("SELECT ID_Usuario FROM usuario WHERE Email = :email LIMIT 1");
+            $chk = $this->db->prepare("SELECT ID_Usuario FROM usuario WHERE Email = :email AND deleted_at IS NULL LIMIT 1");
             $chk->execute([':email' => $email]);
             $existe = $chk->fetch(PDO::FETCH_ASSOC);
             if ($existe && (string)$existe['ID_Usuario'] !== (string)$id) {
@@ -180,33 +169,28 @@ class Usuario
                 $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
                 if ($rol !== null) {
                     $rol = $this->rolValido($rol);
-                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email, Password_Hash = :hash, Rol = :rol WHERE ID_Usuario = :id");
+                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email, Password_Hash = :hash, Rol = :rol WHERE ID_Usuario = :id AND deleted_at IS NULL");
                     $stmt->bindParam(":rol", $rol);
                 } else {
-                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email, Password_Hash = :hash WHERE ID_Usuario = :id");
+                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email, Password_Hash = :hash WHERE ID_Usuario = :id AND deleted_at IS NULL");
                 }
                 $stmt->bindParam(":hash", $hash);
             } else {
                 if ($rol !== null) {
                     $rol = $this->rolValido($rol);
-                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email, Rol = :rol WHERE ID_Usuario = :id");
+                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email, Rol = :rol WHERE ID_Usuario = :id AND deleted_at IS NULL");
                     $stmt->bindParam(":rol", $rol);
                 } else {
-                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email WHERE ID_Usuario = :id");
+                    $stmt = $this->db->prepare("UPDATE usuario SET Email = :email WHERE ID_Usuario = :id AND deleted_at IS NULL");
                 }
             }
             $stmt->bindParam(":email", $email);
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             $ok = $stmt->execute();
             if ($ok) {
-                // Mantiene control_accesos sincronizado si cambio el email
                 try {
-                    $old = $this->db->prepare("SELECT Email FROM control_accesos WHERE Email = :e LIMIT 1");
-                    $old->execute([':e' => $email]);
-                    if (!$old->fetch()) {
-                        $ins = $this->db->prepare("INSERT IGNORE INTO control_accesos (Email) VALUES (:e)");
-                        $ins->execute([':e' => $email]);
-                    }
+                    $upd = $this->db->prepare("UPDATE control_accesos SET Email = :email WHERE ID_Usuario = :id");
+                    $upd->execute([':email' => $email, ':id' => $id]);
                 } catch (PDOException $e) {
                 }
             }
@@ -217,32 +201,25 @@ class Usuario
         }
     }
 
-    public function cambiarEstado($id, $activo)
+    public function eliminarPorId($id)
     {
         if (!ctype_digit((string)$id)) {
             return false;
         }
-        $activo = ((int)$activo === 1) ? 1 : 0;
         try {
-            $stmt = $this->db->prepare("UPDATE usuario SET Activo = :a WHERE ID_Usuario = :id");
-            $stmt->bindParam(":a", $activo, PDO::PARAM_INT);
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("DELETE FROM usuario WHERE ID_Usuario = :id");
             $stmt->bindParam(":id", $id, PDO::PARAM_INT);
-            return $stmt->execute();
+            $ok = $stmt->execute();
+            $this->db->commit();
+            return $ok;
         } catch (PDOException $e) {
-            error_log("Usuario::cambiarEstado: " . $e->getMessage());
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("Usuario::eliminarPorId: " . $e->getMessage());
             return false;
         }
-    }
-
-    public function eliminarPorId($id)
-    {
-        // Por terminos legales NO hay borrado fisico: se inactiva.
-        return $this->cambiarEstado($id, 0);
-    }
-
-    public function activarPorId($id)
-    {
-        return $this->cambiarEstado($id, 1);
     }
 
     // =========================================================================
@@ -255,7 +232,7 @@ class Usuario
             return ["status" => false, "message" => "Correo invalido."];
         }
         try {
-            $query = "SELECT ID_Usuario, Email, Password_Hash FROM usuario WHERE Email = :email LIMIT 1";
+            $query = "SELECT ID_Usuario, Email, Password_Hash FROM usuario WHERE Email = :email AND deleted_at IS NULL LIMIT 1";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(":email", $email);
             $stmt->execute();
