@@ -23,10 +23,10 @@ class PasswordResetController
      */
     public function solicitar($email)
     {
-        $msg = 'Si el correo existe, enviamos un enlace de recuperación (revisa tu inbox de Mailtrap).';
+        $msg = 'Si el correo existe, enviamos un enlace de recuperación (revisa tu inbox de Mailtrap). Vence en 15 minutos.';
         $user = $this->model->usuarioPorEmail($email);
         if (!$user) return ['sent' => false, 'message' => $msg, 'link' => null];
-        $token = $this->model->crearToken($user['ID_Usuario'], 1);
+        $token = $this->model->crearToken($user['ID_Usuario'], 15); // RF 1.4: 15 min
         $link = $this->mailer->getAppUrl() . "/index.php?action=reset_password&token=" . $token;
         $r = $this->mailer->enviarRecuperacion($user['Email'], $link);
         if (!$r['ok']) {
@@ -41,16 +41,19 @@ class PasswordResetController
         return $this->model->validarToken($token);
     }
 
-    /** Paso 2: guardar nueva clave. Retorna ['ok'=>bool,'message'=>string]. */
+    /** Paso 2: guardar nueva clave. Retorna ['ok'=>bool,'message'=>string]. RF 1.5: diferente a la anterior. */
     public function restablecer($token, $nueva, $confirmar)
     {
         if ($nueva !== $confirmar) return ['ok' => false, 'message' => 'Las contraseñas no coinciden.'];
         if (!preg_match($this->passwordRegex(), $nueva)) {
             return ['ok' => false, 'message' => 'La contraseña debe tener 8-20 caracteres, mayúscula, minúscula, número y símbolo.'];
         }
-        $ok = $this->model->consumirToken($token, $nueva);
-        return $ok
+        $res = $this->model->consumirToken($token, $nueva);
+        if ($res === 'IGUAL') {
+            return ['ok' => false, 'message' => 'La nueva contraseña debe ser diferente a la anterior.'];
+        }
+        return $res === true
             ? ['ok' => true, 'message' => 'Contraseña actualizada. Ya puedes iniciar sesión.']
-            : ['ok' => false, 'message' => 'Enlace inválido o vencido. Solicita uno nuevo.'];
+            : ['ok' => false, 'message' => 'Enlace inválido o vencido (15 minutos). Solicita uno nuevo.'];
     }
 }

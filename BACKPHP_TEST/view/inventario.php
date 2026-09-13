@@ -113,8 +113,9 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                     <div class="divider-vertical"></div>
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
-                            <span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? 'Usuario'); ?> (<?php echo htmlspecialchars($__rol); ?>)</span>
-                            <div class="avatar"></div>
+                            <span class="user-badge"><strong><?php echo htmlspecialchars($_SESSION["user"]["nombre_completo"] ?? $_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? 'Usuario'); ?></strong><small><?php echo htmlspecialchars($__rol); ?></small></span>
+                            <?php $___avNb = $_SESSION["user"]["nombre_completo"] ?? $_SESSION["user"]["nombre"] ?? 'U'; $___avNbT = trim((string)$___avNb); $___avIni = $___avNbT !== '' ? (function_exists('mb_strtoupper') ? mb_strtoupper(mb_substr($___avNbT, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($___avNbT, 0, 1))) : 'U'; $___avFoto = $_SESSION["user"]["foto"] ?? $_SESSION["user"]["Foto"] ?? null; ?>
+                            <div class="avatar" title="<?php echo htmlspecialchars($___avNbT); ?>"><?php if (!empty($___avFoto)): ?><img src="<?php echo htmlspecialchars($___avFoto); ?>" alt="Foto de perfil"><?php else: ?><?php echo htmlspecialchars($___avIni); ?><?php endif; ?></div>
                         </div>
                         <div class="dropdown-menu-user" id="userDropdownMenu">
                             <a href="index.php?action=profile" class="dropdown-user-item">
@@ -135,10 +136,14 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 <div class="page-header">
                     <h2 id="form-title-text">INVENTARIO</h2>
                 </div>
-                <?php if (isset($_GET['error']) && $_GET['error'] === 'save_fail'): ?>
-                    <div style="background:#fed7d7;color:#9b2c2c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;">
-                        No se pudo guardar. Verifica precio &gt; 0, stock ≥ 0 y categoría/proveedor válidos.
+                <?php $flashErr = $_GET['error'] ?? ''; $flashOk = $_GET['status'] ?? ''; ?>
+                <?php if ($flashErr !== ''): ?>
+                    <div class="alert-msg alert-error" style="display:block;">
+                        <?php echo htmlspecialchars($flashErr === 'save_fail' ? 'No se pudo guardar. Verifica precio > 0, stock ≥ 0 y categoría/proveedor válidos.' : $flashErr); ?>
                     </div>
+                <?php endif; ?>
+                <?php if ($flashOk !== ''): ?>
+                    <div class="alert-msg alert-success" style="display:block;"><?php echo htmlspecialchars($flashOk); ?></div>
                 <?php endif; ?>
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px;">
                     <div class="crud-modern-card" style="margin:0;padding:16px;">
@@ -170,6 +175,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                             <?php endif; ?>
                             <form action="index.php?action=inventario" method="POST">
                                 <input type="hidden" name="inv_action" value="save">
+                                <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                 <input type="hidden" name="ID_Producto" id="form-id">
                                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:12px;align-items:start;">
                                     <div>
@@ -261,15 +267,25 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                                 </button>
                                                 <?php if ($isAdminInv): ?>
                                                 <?php if ($pActivo === 1): ?>
-                                                <button type="button" class="btn-action-delete"
-                                                    onclick="askToggleInv('index.php?action=inventario&inv_toggle=<?php echo urlencode($row['ID_Producto']); ?>&estado=0', 'Inactivar producto', '¿Quieres inactivar <?php echo htmlspecialchars(str_replace("'", "", $row['Nombre_Producto']), ENT_QUOTES); ?>? No se borra por ley/trigger, solo se desactiva.')">
-                                                    <i class="fa-solid fa-ban"></i> Inactivar
-                                                </button>
+                                                <form method="POST" action="index.php?action=inventario" style="display:inline;">
+                                                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                                    <input type="hidden" name="inv_toggle_id" value="<?php echo htmlspecialchars($row['ID_Producto'], ENT_QUOTES); ?>">
+                                                    <input type="hidden" name="estado" value="0">
+                                                    <button type="button" class="btn-action-delete"
+                                                        onclick="askToggleInv(this, 'Inactivar producto', '¿Quieres inactivar <?php echo htmlspecialchars(str_replace("'", "", $row['Nombre_Producto']), ENT_QUOTES); ?>? No se borra por ley/trigger, solo se desactiva.')">
+                                                        <i class="fa-solid fa-ban"></i> Inactivar
+                                                    </button>
+                                                </form>
                                                 <?php else: ?>
-                                                <button type="button" class="btn-crud-save"
-                                                    onclick="askToggleInv('index.php?action=inventario&inv_toggle=<?php echo urlencode($row['ID_Producto']); ?>&estado=1', 'Activar producto', '¿Quieres reactivar <?php echo htmlspecialchars(str_replace("'", "", $row['Nombre_Producto']), ENT_QUOTES); ?>? Volverá a estar disponible.')">
-                                                    <i class="fa-solid fa-check"></i> Activar
-                                                </button>
+                                                <form method="POST" action="index.php?action=inventario" style="display:inline;">
+                                                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                                    <input type="hidden" name="inv_toggle_id" value="<?php echo htmlspecialchars($row['ID_Producto'], ENT_QUOTES); ?>">
+                                                    <input type="hidden" name="estado" value="1">
+                                                    <button type="button" class="btn-crud-save"
+                                                        onclick="askToggleInv(this, 'Activar producto', '¿Quieres reactivar <?php echo htmlspecialchars(str_replace("'", "", $row['Nombre_Producto']), ENT_QUOTES); ?>? Volverá a estar disponible.')">
+                                                        <i class="fa-solid fa-check"></i> Activar
+                                                    </button>
+                                                </form>
                                                 <?php endif; ?>
                                                 <?php endif; ?>
                                             </td>
@@ -330,10 +346,10 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 });
             });
         }
-        // Modal personalizada ACIDO (inactivar/activar) - sin "localhost dice"
-        let confirmHrefInv = '';
-        function askToggleInv(href, title, message) {
-            confirmHrefInv = href;
+        // Modal personalizada ACIDO (inactivar/activar) - envía el form POST del botón
+        let confirmFormInv = null;
+        function askToggleInv(btn, title, message) {
+            confirmFormInv = btn ? btn.closest('form') : null;
             document.getElementById('acidoModalTitleInv').innerText = title;
             document.getElementById('acidoModalMsgInv').innerText = message;
             var btn = document.getElementById('acidoModalConfirmInv');
@@ -343,10 +359,10 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
         }
         function closeAcidoModalInv() {
             document.getElementById('acidoModalInv').style.display = 'none';
-            confirmHrefInv = '';
+            confirmFormInv = null;
         }
         function confirmAcidoModalInv() {
-            if (confirmHrefInv) window.location.href = confirmHrefInv;
+            if (confirmFormInv) confirmFormInv.submit();
         }
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeAcidoModalInv();

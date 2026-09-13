@@ -276,3 +276,94 @@ body {
     text-decoration: none;
     font-weight: 700;
 }
+
+/* ===================================================
+   MODO REGISTRO (7 campos): tarjeta alta + 2 columnas
+   El login sigue con 520px fijos; solo .register-mode crece.
+=================================================== */
+.login-wrapper.register-mode {
+    height: auto !important;
+    min-height: 600px;
+    max-height: 94vh;
+    max-width: 990px;
+}
+
+.login-wrapper.register-mode .brand-panel {
+    min-height: 600px;
+    flex: 0.85;
+}
+
+.form-panel.register-mode {
+    height: auto;
+    max-height: 94vh;
+    overflow-y: auto;
+    justify-content: flex-start;
+    padding-top: 22px !important;
+    flex: 1.35;
+}
+
+.form-row {
+    display: flex;
+    gap: 8px;
+}
+
+.form-row .input-group {
+    flex: 1;
+    min-width: 0;
+}
+
+#registerForm .input-group {
+    margin-bottom: 9px !important;
+    padding: 8px 12px !important;
+}
+
+#registerForm .btn-primary {
+    margin-top: 4px;
+}
+
+.alert-msg {
+    font-size: 11px;
+    border-radius: 8px;
+    padding: 9px 12px;
+    margin-bottom: 10px;
+    text-align: left;
+}
+
+.alert-error {
+    background: #fed7d7;
+    color: #9b2c2c;
+    border: 1px solid #feb2b2;
+}
+
+.alert-success {
+    background: #c6f6d5;
+    color: #22543d;
+    border: 1px solid #9ae6b4;
+}
+
+@media (max-width: 768px) {
+    body {
+        overflow-y: auto !important;
+    }
+    .login-wrapper,
+    .login-wrapper.register-mode {
+        flex-direction: column;
+        height: auto !important;
+        max-height: none;
+        width: 94%;
+    }
+    .brand-panel {
+        border-radius: 20px 20px 0 0;
+        border-bottom-right-radius: 60px;
+        min-height: 0 !important;
+        padding: 28px;
+    }
+    .form-panel.register-mode {
+        max-height: none;
+        overflow: visible;
+    }
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+}

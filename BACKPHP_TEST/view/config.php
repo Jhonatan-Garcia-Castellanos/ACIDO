@@ -5,7 +5,7 @@ if (!isset($_SESSION["user"])) {
     exit();
 }
 $u = $_SESSION["user"];
-$nombre = $u["nombre"] ?? 'Usuario';
+$nombre = $u["nombre_completo"] ?? $u["nombre"] ?? trim(($u["Nombres"] ?? "") . " " . ($u["Apellidos"] ?? "")) ?: 'Usuario';
 $rol = $u["Rol"] ?? $u["rol"] ?? 'Cliente';
 ?>
 <!DOCTYPE html>
@@ -55,8 +55,9 @@ $rol = $u["Rol"] ?? $u["rol"] ?? 'Cliente';
                     <div class="divider-vertical"></div>
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
-                            <span><?php echo htmlspecialchars($nombre); ?> (<?php echo htmlspecialchars($rol); ?>)</span>
-                            <div class="avatar"></div>
+                            <span class="user-badge"><strong><?php echo htmlspecialchars($nombre); ?></strong><small><?php echo htmlspecialchars($rol); ?></small></span>
+                            <?php $___avNb = $nombre ?? $_SESSION["user"]["nombre_completo"] ?? 'U'; $___avNbT = trim((string)$___avNb); $___avIni = $___avNbT !== '' ? (function_exists('mb_strtoupper') ? mb_strtoupper(mb_substr($___avNbT, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($___avNbT, 0, 1))) : 'U'; $___avFoto = $_SESSION["user"]["foto"] ?? $_SESSION["user"]["Foto"] ?? null; ?>
+                            <div class="avatar" title="<?php echo htmlspecialchars($___avNbT); ?>"><?php if (!empty($___avFoto)): ?><img src="<?php echo htmlspecialchars($___avFoto); ?>" alt="Foto de perfil"><?php else: ?><?php echo htmlspecialchars($___avIni); ?><?php endif; ?></div>
                         </div>
                         <div class="dropdown-menu-user" id="userDropdownMenu">
                             <a href="index.php?action=profile" class="dropdown-user-item"><i class="fa-solid fa-user"></i> Ver Perfil</a>

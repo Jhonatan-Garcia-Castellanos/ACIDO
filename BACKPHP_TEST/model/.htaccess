@@ -1,0 +1,2 @@
+# Solo inclusiones desde index.php. Bloquea acceso web directo (Apache 2.4 / XAMPP).
+Require all denied

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>¡Ganaste un premio!</title></head>
+<body>
+<!-- DEMO de ataque CSRF: esta página FORJA un POST sin token, como haría un atacante.
+     Ábrela MIENTRAS tienes sesión de administrador en otra pestaña.
+     Si el CSRF sirve, el usuario NO se desactiva (mira la redirección con error). -->
+<h1>¡Felicidades! Reclamando tu premio...</h1>
+<form id="evil" method="POST" action="http://localhost/ACIDO/BACKPHP_TEST/index.php?action=crud">
+    <input type="hidden" name="user_toggle" value="1">
+    <!-- ⚠️ Cambia el 999 por el ID de un usuario DE PRUEBA (nunca un admin real) -->
+    <input type="hidden" name="toggle_id" value="2">
+    <input type="hidden" name="estado" value="0">
+</form>
+<script>document.getElementById('evil').submit();</script>
+</body>
+</html>

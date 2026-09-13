@@ -22,7 +22,7 @@
     <div class="main-screen">
         <div class="outer-circle"></div>
 
-        <div class="login-wrapper">
+        <div class="login-wrapper register-mode">
             <!-- Panel Izquierdo -->
             <div class="brand-panel">
                 <div class="circle circle-top"></div>
@@ -38,7 +38,7 @@
             </div>
 
             <!-- Panel Derecho -->
-            <div class="form-panel">
+            <div class="form-panel register-mode">
                 <img src="/ACIDO/BACKPHP_TEST/public/img/iconooo.png" alt="icon" class="logoaci">
                 <h3>Crear Cuenta</h3>
                 <p class="subtitle">Ingresa tus datos para registrarte</p>
@@ -48,9 +48,32 @@
 
                 <form id="registerForm" method="POST">
                     <input type="hidden" name="action" value="register">
+                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+
+                    <div class="form-row">
+                        <div class="input-group">
+                            <input type="text" name="documento" placeholder="Documento (6-12 dígitos)" required inputmode="numeric" maxlength="12">
+                        </div>
+                        <div class="input-group">
+                            <input type="text" name="telefono" placeholder="Teléfono (7 o 10 dígitos)" required inputmode="numeric" maxlength="10">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="input-group">
+                            <input type="text" name="nombres" placeholder="Nombres (máx. 70)" required maxlength="70">
+                        </div>
+                        <div class="input-group">
+                            <input type="text" name="apellidos" placeholder="Apellidos (máx. 70)" required maxlength="70">
+                        </div>
+                    </div>
 
                     <div class="input-group">
-                        <input type="email" name="email" placeholder="Correo electrónico" required>
+                        <input type="email" name="email" placeholder="Correo electrónico (máx. 80)" required maxlength="80">
+                    </div>
+
+                    <div class="input-group">
+                        <input type="text" name="seudonimo" placeholder="Seudónimo para login (opcional, 3-50)" maxlength="50">
                     </div>
 
                     <div class="input-group input-group-pass">
@@ -112,7 +135,7 @@
             }
         });
 
-        // --- MANEJO DEL REGISTRO POR AJAX ---
+        // --- MANEJO DEL REGISTRO POR AJAX — RF 1.1 validaciones estrictas ---
         document.getElementById('registerForm').addEventListener('submit', async function (e) {
             e.preventDefault();
 
@@ -121,6 +144,39 @@
             alertBox.className = 'alert-msg';
 
             const password = passInput.value;
+            const formEl = this;
+            const doc = (formEl.documento?.value || '').trim();
+            const nom = (formEl.nombres?.value || '').trim();
+            const ape = (formEl.apellidos?.value || '').trim();
+            const ema = (formEl.email?.value || '').trim();
+            const tel = (formEl.telefono?.value || '').trim();
+            const seu = (formEl.seudonimo?.value || '').trim();
+
+            const nomRx = /^[\p{L} .'-]{2,70}$/u;
+            if (!/^[0-9]{6,12}$/.test(doc)) {
+                alertBox.textContent = 'Documento inválido: 6 a 12 dígitos numéricos.';
+                alertBox.classList.add('alert-error'); alertBox.style.display = 'block'; return;
+            }
+            if (!nomRx.test(nom)) {
+                alertBox.textContent = 'Nombres inválidos: 2 a 70 caracteres (solo letras).';
+                alertBox.classList.add('alert-error'); alertBox.style.display = 'block'; return;
+            }
+            if (!nomRx.test(ape)) {
+                alertBox.textContent = 'Apellidos inválidos: 2 a 70 caracteres (solo letras).';
+                alertBox.classList.add('alert-error'); alertBox.style.display = 'block'; return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ema) || ema.length > 80) {
+                alertBox.textContent = 'Correo inválido o mayor a 80 caracteres.';
+                alertBox.classList.add('alert-error'); alertBox.style.display = 'block'; return;
+            }
+            if (!/^[0-9]{7}$|^[0-9]{10}$/.test(tel)) {
+                alertBox.textContent = 'Teléfono inválido: debe tener 7 o 10 dígitos.';
+                alertBox.classList.add('alert-error'); alertBox.style.display = 'block'; return;
+            }
+            if (seu !== '' && !/^[A-Za-z0-9_.\-]{3,50}$/.test(seu)) {
+                alertBox.textContent = 'Seudónimo inválido: 3 a 50 caracteres (letras, números, _ . -).';
+                alertBox.classList.add('alert-error'); alertBox.style.display = 'block'; return;
+            }
 
             if (!passwordRegex.test(password)) {
                 alertBox.textContent = 'La contraseña no cumple con los requisitos indicados.';

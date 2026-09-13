@@ -19,7 +19,7 @@
                 <div class="circle circle-bottom-right"></div>
                 <div class="brand-content">
                     <h1>RECUPERAR</h1>
-                    <p>Te enviamos un enlace a tu correo para crear una nueva contraseña. Vence en 1 hora.</p>
+                    <p>Te enviamos un enlace a tu correo para crear una nueva contraseña. Vence en 15 minutos.</p>
                 </div>
             </div>
             <div class="form-panel">
@@ -36,6 +36,7 @@
                 <?php endif; ?>
                 <form method="POST" action="index.php?action=forgot_password">
                     <input type="hidden" name="reset_action" value="request">
+                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                     <div class="input-group">
                         <input type="email" name="email" placeholder="Correo electrónico" required autocomplete="email">
                     </div>

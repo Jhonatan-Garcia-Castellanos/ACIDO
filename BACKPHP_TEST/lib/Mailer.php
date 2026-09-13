@@ -73,7 +73,7 @@ class Mailer
 
             // Plantilla compatible con clientes de correo: tablas + estilos en línea
             $mail->Body = '<!DOCTYPE html><html lang="es"><body style="margin:0;padding:0;background-color:#f4f5f7;">'
-                . '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Restablece tu contraseña de ÁCIDO Colombia. El enlace vence en 1 hora.</div>'
+                . '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Restablece tu contraseña de ÁCIDO Colombia. El enlace vence en 15 minutos.</div>'
                 . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:24px 12px;">'
                 . '<tr><td align="center">'
                 . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;">'
@@ -93,7 +93,7 @@ class Mailer
                 // Datos del enlace
                 . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fc;border:1px solid #e3e6f0;border-radius:8px;margin-bottom:16px;">'
                 . '<tr>'
-                . '<td align="center" style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1C3B4A;"><b>&#9201; Vence en 1 hora</b></td>'
+                . '<td align="center" style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1C3B4A;"><b>&#9201; Vence en 15 minutos</b></td>'
                 . '<td align="center" style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1C3B4A;"><b>&#128274; Un solo uso</b></td>'
                 . '</tr></table>'
                 . '<p style="margin:0 0 6px;font-size:12px;color:#718096;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>'
@@ -108,7 +108,7 @@ class Mailer
                 . '</table>'
                 . '</td></tr></table>'
                 . '</body></html>';
-            $mail->AltBody = "Hola $paraEmail\n\nRestablece tu contraseña de ÁCIDO Colombia aquí (vence en 1 hora, un solo uso):\n$link\n\nSi no fuiste tú, ignora este mensaje.";
+            $mail->AltBody = "Hola $paraEmail\n\nRestablece tu contraseña de ÁCIDO Colombia aquí (vence en 15 minutos, un solo uso):\n$link\n\nSi no fuiste tú, ignora este mensaje.";
             $mail->send();
             return ['ok' => true, 'error' => null];
         } catch (Exception $e) {

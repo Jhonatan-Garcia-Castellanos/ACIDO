@@ -51,7 +51,9 @@
                     <div id="alertMsg" class="alert-msg" style="display: none;"></div>
                 <?php endif; ?>
 
-                <form id="passForm" action="/ACIDO/BACKPHP_TEST/controller/change_password.php" method="POST">
+                <form id="passForm" action="index.php?action=change_password" method="POST">
+                    <input type="hidden" name="pass_action" value="change">
+                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                     <div class="input-group">
                         <input type="email" name="email" placeholder="Correo electrónico" required autocomplete="email">
                     </div>

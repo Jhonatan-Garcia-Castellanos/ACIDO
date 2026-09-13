@@ -4,6 +4,7 @@ require_once "controller/ProductoController.php";
 require_once "controller/VentaController.php";
 require_once "controller/DashboardController.php";
 require_once "controller/PasswordResetController.php";
+require_once "lib/Csrf.php";
 
 session_start();
 $controller = new UsuarioController();
@@ -45,7 +46,7 @@ function requireLogin() {
         exit();
     }
 }
-// Sincroniza el Rol de la sesion con la DB para que un UPDATE a Administrador aplique con solo recargar
+// Sincroniza Rol + nombre/apellido de la sesion con la DB
 function syncRoleFromDb() {
     global $controller;
     if (!isLogged()) return;
@@ -59,6 +60,17 @@ function syncRoleFromDb() {
             if (isset($fresh["Email"])) {
                 $_SESSION["user"]["Email"] = $fresh["Email"];
                 $_SESSION["user"]["email"] = $fresh["Email"];
+            }
+            if (!empty($fresh["nombre"])) {
+                $_SESSION["user"]["nombre"] = $fresh["nombre"];
+                $_SESSION["user"]["nombre_completo"] = $fresh["nombre"];
+            }
+            foreach (["Nombres", "Apellidos", "nombres", "apellidos"] as $k) {
+                if (isset($fresh[$k])) $_SESSION["user"][$k] = $fresh[$k];
+            }
+            if (array_key_exists("Foto", (array)$fresh) || array_key_exists("foto", (array)$fresh)) {
+                $_SESSION["user"]["Foto"] = $fresh["Foto"] ?? $fresh["foto"] ?? null;
+                $_SESSION["user"]["foto"] = $fresh["foto"] ?? $fresh["Foto"] ?? null;
             }
         }
     } catch (Exception $e) {}
@@ -77,16 +89,66 @@ function requireRole($vista) {
     }
 }
 
+// CSRF: valida el token en cada POST que cambia estado. Si falla, se rechaza
+// sin ejecutar nada (el atacante no conoce este valor aunque use tu sesión).
+function checkCsrf() {
+    $ok = Csrf::validate($_POST['csrf_token'] ?? null);
+    if ($ok) return;
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    if ($isAjax) {
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Sesión vencida. Recarga la página e intenta de nuevo.']);
+        exit();
+    }
+    $back = $_GET['action'] ?? 'login';
+    header("Location: index.php?action=" . urlencode($back) . "&error=" . urlencode("Sesión vencida. Recarga la página e intenta de nuevo."));
+    exit();
+}
+
 // 1. PROCESAR FORMULARIOS (POST)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
     // Detectar si la petición viene por AJAX (Fetch desde JS)
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
-    // A. REGISTRO DE USUARIO
+    // A. REGISTRO DE USUARIO — RF 1.1: validaciones estrictas (documento, nombres 70, correo 80, tel 7/10, clave 8-20)
     if ($_POST["action"] === "register") {
-        $email = trim($_POST["email"] ?? $_POST["username"] ?? '');
-        $password = $_POST["password"] ?? '';
+        checkCsrf();
+        $datosReg = [
+            'email'     => trim($_POST["email"] ?? $_POST["username"] ?? ''),
+            'password'  => $_POST["password"] ?? '',
+            'documento' => trim($_POST["documento"] ?? ''),
+            'nombres'   => trim($_POST["nombres"] ?? ''),
+            'apellidos' => trim($_POST["apellidos"] ?? ''),
+            'telefono'  => trim($_POST["telefono"] ?? ''),
+            'seudonimo' => trim($_POST["seudonimo"] ?? $_POST["username_alias"] ?? ''),
+        ];
+        // Compat: formulario viejo solo traía email+password -> usa registro simple
+        $esRegistroCompleto = ($datosReg['documento'] !== '' || $datosReg['nombres'] !== '' || $datosReg['telefono'] !== '');
+        if ($esRegistroCompleto) {
+            $res = $controller->registrarCompleto($datosReg);
+            if ($res['ok']) {
+                if ($isAjax) {
+                    while (ob_get_level()) { ob_end_clean(); }
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'message' => '¡Usuario registrado con éxito!', 'redirect' => 'index.php?action=login']);
+                    exit();
+                }
+                header("Location: index.php?action=login&status=success_register");
+                exit();
+            }
+            if ($isAjax) {
+                while (ob_get_level()) { ob_end_clean(); }
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $res['message']]);
+                exit();
+            }
+            header("Location: index.php?action=register&error=" . urlencode($res['message']));
+            exit();
+        }
+        $email = $datosReg['email'];
+        $password = $datosReg['password'];
 
         if (empty($email) || empty($password)) {
             if ($isAjax) {
@@ -156,25 +218,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
         }
     } 
     
-    // B. INICIO DE SESIÓN
+    // B. INICIO DE SESIÓN — RF 1.2 (correo/seudónimo) + RF 1.3 (genérico + bloqueo 5 intentos)
     elseif ($_POST["action"] === "login") {
-        $email = trim($_POST["email"] ?? $_POST["username"] ?? '');
+        checkCsrf();
+        $loginId = trim($_POST["email"] ?? $_POST["username"] ?? $_POST["login"] ?? '');
         $password = $_POST["password"] ?? '';
 
-        $usuario = $controller->login($email, $password);
+        $usuario = $controller->login($loginId, $password);
 
         if ($usuario) {
             session_regenerate_id(true);
             unset($usuario["Password_Hash"], $usuario["password"]);
-            // Sesion ligera compatible con DB.sql: ID_Usuario, Email, Rol + alias
+            // Sesion con nombre + apellido reales y rol (el rol va debajo del nombre en la vista)
+            $nomFull = $usuario["nombre"] ?? $usuario["nombre_completo"] ?? trim(($usuario["Nombres"] ?? "") . " " . ($usuario["Apellidos"] ?? ""));
+            if ($nomFull === "") $nomFull = explode("@", $loginId)[0];
             $_SESSION["user"] = [
                 "ID_Usuario" => $usuario["ID_Usuario"] ?? $usuario["id"] ?? null,
                 "id" => $usuario["ID_Usuario"] ?? $usuario["id"] ?? null,
-                "Email" => $usuario["Email"] ?? $usuario["email"] ?? $email,
-                "email" => $usuario["Email"] ?? $usuario["email"] ?? $email,
+                "Email" => $usuario["Email"] ?? $usuario["email"] ?? $loginId,
+                "email" => $usuario["Email"] ?? $usuario["email"] ?? $loginId,
                 "Rol" => $usuario["Rol"] ?? $usuario["rol"] ?? "Cliente",
                 "rol" => $usuario["Rol"] ?? $usuario["rol"] ?? "Cliente",
-                "nombre" => $usuario["nombre"] ?? explode("@", $email)[0],
+                "Nombres" => $usuario["Nombres"] ?? $usuario["nombres"] ?? "",
+                "Apellidos" => $usuario["Apellidos"] ?? $usuario["apellidos"] ?? "",
+                "nombres" => $usuario["Nombres"] ?? $usuario["nombres"] ?? "",
+                "apellidos" => $usuario["Apellidos"] ?? $usuario["apellidos"] ?? "",
+                "nombre" => $nomFull,
+                "nombre_completo" => $nomFull,
+                "Foto" => $usuario["Foto"] ?? $usuario["foto"] ?? null,
+                "foto" => $usuario["foto"] ?? $usuario["Foto"] ?? null,
             ];
 
             $homeOk = homeForRole($_SESSION["user"]["Rol"] ?? 'Cliente');
@@ -188,10 +260,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             header("Location: " . $homeOk);
             exit();
         } else {
+            // RF 1.3: mensaje genérico + aviso de bloqueo temporal tras 5 intentos
+            $bloqHasta = $controller->estaBloqueado($loginId);
+            $msgFail = $bloqHasta
+                ? 'Cuenta bloqueada temporalmente por 5 intentos fallidos. Intenta de nuevo después de las ' . $bloqHasta . '.'
+                : 'usuario o contraseña incorrectos.';
             if ($isAjax) {
                 while (ob_get_level()) { ob_end_clean(); }
                 header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'message' => 'Correo o contraseña incorrectos.']);
+                echo json_encode(['success' => false, 'message' => $msgFail, 'blocked' => (bool)$bloqHasta]);
                 exit();
             }
 
@@ -206,6 +283,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 // 1a. RECUPERACIÓN POR CORREO (público, sin login): solicita link y restablece con token
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_action"])) {
     if ($_POST["reset_action"] === "request") {
+        checkCsrf();
         $r = $resetController->solicitar(trim($_POST["email"] ?? ''));
         // ?debug=1 muestra el link en pantalla cuando el SMTP aún no está configurado
         if (!$r['sent'] && !empty($r['link']) && isset($_GET['debug'])) {
@@ -218,6 +296,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_action"])) {
         exit();
     }
     if ($_POST["reset_action"] === "reset") {
+        checkCsrf();
         $tok = $_POST["token"] ?? $_GET["token"] ?? '';
         $res = $resetController->restablecer($tok, $_POST["nueva_password"] ?? '', $_POST["confirmar_password"] ?? '');
         if ($res['ok']) {
@@ -229,9 +308,73 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_action"])) {
     }
 }
 
+// 1b. FOTO DE PERFIL (requiere login): subir o quitar
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["photo_action"])) {
+    requireLogin();
+    checkCsrf();
+    $uidFoto = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+    if ($_POST["photo_action"] === "upload") {
+        $r = $controller->subirFoto($uidFoto, $_FILES["foto"] ?? []);
+        if (!empty($r['ok']) && !empty($r['ruta'])) {
+            $_SESSION["user"]["foto"] = $r['ruta'];
+            $_SESSION["user"]["Foto"] = $r['ruta'];
+        }
+        header("Location: index.php?action=profile&" . (!empty($r['ok']) ? "status" : "error") . "=" . urlencode($r['message']));
+        exit();
+    }
+    if ($_POST["photo_action"] === "remove") {
+        $r = $controller->eliminarFoto($uidFoto);
+        if (!empty($r['ok'])) {
+            unset($_SESSION["user"]["foto"], $_SESSION["user"]["Foto"]);
+        }
+        header("Location: index.php?action=profile&" . (!empty($r['ok']) ? "status" : "error") . "=" . urlencode($r['message']));
+        exit();
+    }
+}
+
+// 1b2. CAMBIO DE CONTRASEÑA LOGUEADO (front-controller; antes POST directo al controller)
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["pass_action"]) && $_POST["pass_action"] === "change") {
+    requireLogin();
+    checkCsrf();
+    $email = trim($_POST['email'] ?? '');
+    $actual = $_POST['actual_password'] ?? '';
+    $nueva = $_POST['nueva_password'] ?? '';
+    $conf = $_POST['confirmar_password'] ?? '';
+    if (empty($email) || empty($actual) || empty($nueva) || empty($conf)) {
+        header("Location: index.php?action=change_password&error=" . urlencode("Todos los campos son obligatorios."));
+        exit();
+    }
+    if ($nueva !== $conf) {
+        header("Location: index.php?action=change_password&error=" . urlencode("Las nuevas contraseñas no coinciden."));
+        exit();
+    }
+    $resultado = $controller->cambiarPassword($email, $actual, $nueva);
+    if (!empty($resultado['status'])) {
+        header("Location: index.php?action=login&status=password_updated");
+    } else {
+        header("Location: index.php?action=change_password&error=" . urlencode($resultado['message'] ?? 'No se pudo cambiar la contraseña.'));
+    }
+    exit();
+}
+
+// 1b2b. MIS DATOS (perfil propio): el usuario edita documento/nombres/apellidos/teléfono.
+// Seguridad: el id siempre es el de la sesión, se ignora cualquier id posteado.
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["profile_action"]) && $_POST["profile_action"] === "save") {
+    requireLogin();
+    checkCsrf();
+    $uidPropio = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+    $rp = $controller->actualizarPersona($uidPropio, $_POST);
+    if (!empty($rp['ok'])) {
+        syncRoleFromDb();
+    }
+    header("Location: index.php?action=profile&" . (!empty($rp['ok']) ? "status" : "error") . "=" . urlencode($rp['message'] ?? ''));
+    exit();
+}
+
 // 1b. CRUD: ver/editar = Admin+Empleado, eliminar = solo Admin
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_POST["crud_action"] === "save") {
     requireRole('crud');
+    checkCsrf();
     // Anti-escalada: solo Admin puede cambiar Rol. Empleado conserva el Rol original.
     if (currentRole() !== 'Administrador') {
         $targetId = $_POST['id'] ?? $_POST['ID_Usuario'] ?? '';
@@ -250,16 +393,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_P
             exit();
         }
     }
-    $controller->guardar($_POST);
-    header("Location: index.php?action=crud");
+    $okSave = $controller->guardar($_POST);
+    if (!$okSave) {
+        header("Location: index.php?action=crud&error=" . urlencode("No se pudo guardar. Verifica el correo, documento único y los formatos."));
+        exit();
+    }
+    header("Location: index.php?action=crud&status=" . urlencode("Usuario guardado."));
     exit();
 }
 
-// 2. Inactivar/Activar usuario = Admin (Empleado no cambia estado). Sin borrado fisico por ley.
-if (isset($_GET["toggle_id"])) {
+// 2. Inactivar/Activar usuario = Admin vía POST+CSRF (el GET ya no ejecuta nada).
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["user_toggle"])) {
     requireRole('crud_delete');
-    $tid = $_GET["toggle_id"];
-    $est = $_GET["estado"] ?? '0';
+    checkCsrf();
+    $tid = $_POST["toggle_id"] ?? '';
+    $est = $_POST["estado"] ?? '0';
     if (ctype_digit((string)$tid) && ($est === '0' || $est === '1')) {
         // No permitir auto-inactivarse
         $selfId = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
@@ -270,17 +418,10 @@ if (isset($_GET["toggle_id"])) {
     header("Location: index.php?action=crud");
     exit();
 }
-// Compat: delete_id antiguo ahora inactiva (no borra)
-if (isset($_GET["delete_id"])) {
+// Compat: toggle/delete por GET ya no ejecutan (antes era hueco CSRF) -> redirige sin cambios
+if (isset($_GET["toggle_id"]) || isset($_GET["delete_id"])) {
     requireRole('crud_delete');
-    $delId = $_GET["delete_id"];
-    if (ctype_digit((string)$delId)) {
-        $selfId = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
-        if ((string)$delId !== (string)$selfId) {
-            $controller->cambiarEstado($delId, 0);
-        }
-    }
-    header("Location: index.php?action=crud");
+    header("Location: index.php?action=crud&error=" . urlencode("Acción no permitida por GET. Usa el botón del listado."));
     exit();
 }
 
@@ -345,6 +486,7 @@ if (isset($_GET["action"])) {
         // Guardar producto (solo Admin/Empleado)
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inv_action"]) && $_POST["inv_action"] === "save") {
             requireRole('inventario_save');
+            checkCsrf();
             $ok = $productoController->guardar($_POST);
             if (!$ok) {
                 header("Location: index.php?action=inventario&error=save_fail");
@@ -353,15 +495,22 @@ if (isset($_GET["action"])) {
             header("Location: index.php?action=inventario");
             exit();
         }
-        // Inactivar/Activar producto (solo Admin). Sin borrado fisico: trigger lo bloquea.
-        if (isset($_GET["inv_toggle"])) {
+        // Inactivar/Activar producto (solo Admin) vía POST+CSRF. Sin borrado fisico: trigger lo bloquea.
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inv_toggle_id"])) {
             requireRole('inventario_estado');
-            $pid = $_GET["inv_toggle"];
-            $est = $_GET["estado"] ?? '0';
+            checkCsrf();
+            $pid = $_POST["inv_toggle_id"];
+            $est = $_POST["estado"] ?? '0';
             if (ctype_digit((string)$pid) && ($est === '0' || $est === '1')) {
                 $productoController->cambiarEstado($pid, $est);
             }
             header("Location: index.php?action=inventario");
+            exit();
+        }
+        // Compat: inv_toggle por GET ya no ejecuta (hueco CSRF) -> redirige sin cambios
+        if (isset($_GET["inv_toggle"])) {
+            requireRole('inventario_estado');
+            header("Location: index.php?action=inventario&error=" . urlencode("Acción no permitida por GET. Usa el botón del listado."));
             exit();
         }
         requireRole('inventario');
@@ -377,6 +526,7 @@ if (isset($_GET["action"])) {
         requireRole('catalogo');
         // Agregar al carrito desde catálogo
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"]) && $_POST["cart_action"] === "add") {
+            checkCsrf();
             $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
             header("Location: index.php?action=catalogo");
             exit();
@@ -389,6 +539,7 @@ if (isset($_GET["action"])) {
     if ($_GET["action"] === "carrito") {
         requireRole('carrito');
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"])) {
+            checkCsrf();
             if ($_POST["cart_action"] === "add") {
                 $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
                 header("Location: index.php?action=carrito");
@@ -435,6 +586,8 @@ if (isset($_GET["action"])) {
     if ($_GET["action"] === "profile") {
         requireLogin();
         syncRoleFromDb();
+        $uidPerfil = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        $perfilDetalle = $controller->datosPersona($uidPerfil);
         require_once "view/perfil.php";
         exit();
     }

@@ -1,15 +1,20 @@
 <?php
-// config/mail.php — Credenciales SMTP (Mailtrap Email Testing).
-// 1. Crea cuenta en https://mailtrap.io → Email Testing → Inboxes → SMTP Settings → PHPMailer.
-// 2. Copia Host/Port/Username/Password aquí. NO subir este archivo a git con datos reales.
-// 3. MAIL_FROM debe ser un remitente de tu dominio/app (en Mailtrap da igual).
+// config/mail.php — Lee credenciales SMTP del .env (ver .env.example).
+// 1. Copia .env.example como .env y completa tus datos de Mailtrap
+//    (https://mailtrap.io → Email Testing → Inboxes → SMTP Settings → PHPMailer).
+// 2. Este archivo YA NO contiene secretos: no hay nada que ocultar en git.
+// 3. Sin .env configurado, Mailer::isConfigured() es false y la app
+//    muestra el link de recuperación en pantalla con ?debug=1.
+require_once __DIR__ . "/../lib/Env.php";
+Env::load(dirname(__DIR__));
+
 return [
-    'host'       => 'sandbox.smtp.mailtrap.io', // ej. sandbox.smtp.mailtrap.io
-    'port'       => 2525,                        // Mailtrap: 25, 465, 587 o 2525
-    'username'   => 'ecc3c3f9295414',      // ← reemplazar
-    'password'   => 'fdd40496fb440b',      // ← reemplazar
-    'encryption' => 'tls',                       // 'tls' para 587/2525, 'ssl' para 465, '' para 25
-    'from_email' => 'no-reply@acido.local',
-    'from_name'  => 'ACIDO Colombia',
-    'app_url'    => 'http://localhost/ACIDO/BACKPHP_TEST', // base para armar el link de reset
+    'host'       => Env::get('MAIL_HOST', ''),
+    'port'       => (int)Env::get('MAIL_PORT', 2525),
+    'username'   => Env::get('MAIL_USERNAME', ''),
+    'password'   => Env::get('MAIL_PASSWORD', ''),
+    'encryption' => Env::get('MAIL_ENCRYPTION', 'tls'),
+    'from_email' => Env::get('MAIL_FROM', 'no-reply@acido.local'),
+    'from_name'  => Env::get('MAIL_FROM_NAME', 'ACIDO Colombia'),
+    'app_url'    => rtrim(Env::get('APP_URL', 'http://localhost/ACIDO/BACKPHP_TEST'), '/'),
 ];

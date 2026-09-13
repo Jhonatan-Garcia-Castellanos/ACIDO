@@ -31,6 +31,7 @@
                 <?php if ($err): ?><div class="error-msg" style="display:block;"><?php echo htmlspecialchars($err); ?></div><?php endif; ?>
                 <form id="resetForm" method="POST" action="index.php?action=reset_password&token=<?php echo htmlspecialchars($resetToken ?? ''); ?>">
                     <input type="hidden" name="reset_action" value="reset">
+                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                     <input type="hidden" name="token" value="<?php echo htmlspecialchars($resetToken ?? ''); ?>">
                     <div class="input-group">
                         <input type="password" name="nueva_password" id="nuevaInput" placeholder="Nueva contraseña" required autocomplete="new-password">

@@ -19,17 +19,21 @@ class PasswordReset
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
     }
 
-    /** Genera token, invalida anteriores y retorna token plano (solo se envía por correo). */
-    public function crearToken($idUsuario, $horas = 1)
+    /** Genera token, invalida anteriores y retorna token plano (solo se envía por correo). RF 1.4: vigencia 15 minutos. */
+    public function crearToken($idUsuario, $minutos = 15)
     {
         $token = bin2hex(random_bytes(32)); // 64 chars
         $hash = hash('sha256', $token);
         $this->db->prepare("UPDATE password_resets SET usado_en = NOW() WHERE ID_Usuario = :u AND usado_en IS NULL")
                   ->execute([':u' => $idUsuario]);
-        $stmt = $this->db->prepare("INSERT INTO password_resets (ID_Usuario, token_hash, expira_en) VALUES (:u, :h, DATE_ADD(NOW(), INTERVAL :hh HOUR))");
+        // Compat: si llega 1 u otro valor de la versión vieja en horas, se interpreta como 15 min
+        $min = (int)$minutos;
+        if ($min <= 2) $min = 15;
+        $min = max(5, min(60, $min));
+        $stmt = $this->db->prepare("INSERT INTO password_resets (ID_Usuario, token_hash, expira_en) VALUES (:u, :h, DATE_ADD(NOW(), INTERVAL :mm MINUTE))");
         $stmt->bindValue(':u', $idUsuario, PDO::PARAM_INT);
         $stmt->bindValue(':h', $hash);
-        $stmt->bindValue(':hh', max(1, min(24, (int)$horas)), PDO::PARAM_INT);
+        $stmt->bindValue(':mm', $min, PDO::PARAM_INT);
         $stmt->execute();
         return $token;
     }
@@ -46,11 +50,19 @@ class PasswordReset
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
     }
 
-    /** Cambia Password_Hash y marca token como usado. Retorna bool. */
+    /** Cambia Password_Hash y marca token como usado. RF 1.5: rechaza si es igual a la anterior.
+     * Retorna true | false | 'IGUAL'. */
     public function consumirToken($tokenPlano, $nuevaPassword)
     {
         $row = $this->validarToken($tokenPlano);
         if (!$row) return false;
+        // RF 1.5: debe ser diferente a la anterior
+        $chk = $this->db->prepare("SELECT Password_Hash FROM usuario WHERE ID_Usuario = :u LIMIT 1");
+        $chk->execute([':u' => $row['ID_Usuario']]);
+        $u = $chk->fetch(PDO::FETCH_ASSOC);
+        if ($u && password_verify($nuevaPassword, $u['Password_Hash'])) {
+            return 'IGUAL';
+        }
         $hash = password_hash($nuevaPassword, PASSWORD_BCRYPT, ['cost' => 12]);
         try {
             $this->db->beginTransaction();

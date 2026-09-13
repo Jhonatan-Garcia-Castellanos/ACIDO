@@ -142,8 +142,9 @@ if (!isset($registros)) {
                     <!-- Dropdown de Usuario -->
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
-                            <span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? $_SESSION["user"]["email"] ?? 'Usuario Demo'); ?> (<?php echo htmlspecialchars($_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente'); ?>)</span>
-                            <div class="avatar"></div>
+                            <span class="user-badge"><strong><?php echo htmlspecialchars($_SESSION["user"]["nombre_completo"] ?? $_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? $_SESSION["user"]["email"] ?? 'Usuario Demo'); ?></strong><small><?php echo htmlspecialchars($_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente'); ?></small></span>
+                            <?php $___avNb = $_SESSION["user"]["nombre_completo"] ?? $_SESSION["user"]["nombre"] ?? 'U'; $___avNbT = trim((string)$___avNb); $___avIni = $___avNbT !== '' ? (function_exists('mb_strtoupper') ? mb_strtoupper(mb_substr($___avNbT, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($___avNbT, 0, 1))) : 'U'; $___avFoto = $_SESSION["user"]["foto"] ?? $_SESSION["user"]["Foto"] ?? null; ?>
+                            <div class="avatar" title="<?php echo htmlspecialchars($___avNbT); ?>"><?php if (!empty($___avFoto)): ?><img src="<?php echo htmlspecialchars($___avFoto); ?>" alt="Foto de perfil"><?php else: ?><?php echo htmlspecialchars($___avIni); ?><?php endif; ?></div>
                         </div>
                         <div class="dropdown-menu-user" id="userDropdownMenu">
                             <a href="index.php?action=profile" class="dropdown-user-item">
@@ -166,6 +167,9 @@ if (!isset($registros)) {
                 <div class="page-header">
                     <h2 id="form-title-text">GESTIÓN DE USUARIOS</h2>
                 </div>
+                <?php $flashErr = $_GET['error'] ?? ''; $flashOk = $_GET['status'] ?? ''; ?>
+                <?php if ($flashErr !== ''): ?><div class="alert-msg alert-error" style="display:block;"><?php echo htmlspecialchars($flashErr); ?></div><?php endif; ?>
+                <?php if ($flashOk !== ''): ?><div class="alert-msg alert-success" style="display:block;"><?php echo htmlspecialchars($flashOk); ?></div><?php endif; ?>
 
                 <div class="crud-container-box">
                     <!-- Formulario de Registro -->
@@ -177,6 +181,7 @@ if (!isset($registros)) {
                         <div class="crud-form-body">
                             <form action="index.php?action=crud" method="POST">
                                 <input type="hidden" name="crud_action" value="save">
+                                <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                 <input type="hidden" name="id" id="form-id">
 
                                 <div
@@ -219,9 +224,42 @@ if (!isset($registros)) {
                                             onclick="limpiarFormulario()" style="display: none;">Cancelar</button>
                                     </div>
                                 </div>
+                                <div
+                                    style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; align-items: start; margin-top: 15px;">
+                                    <div>
+                                        <label
+                                            style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Documento
+                                            (6-12 dígitos)</label>
+                                        <input type="text" class="crud-input" name="documento" id="form-documento"
+                                            placeholder="Documento" inputmode="numeric" maxlength="12">
+                                    </div>
+                                    <div>
+                                        <label
+                                            style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Nombres
+                                            (máx. 70)</label>
+                                        <input type="text" class="crud-input" name="nombres" id="form-nombres"
+                                            placeholder="Nombres" maxlength="70">
+                                    </div>
+                                    <div>
+                                        <label
+                                            style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Apellidos
+                                            (máx. 70)</label>
+                                        <input type="text" class="crud-input" name="apellidos" id="form-apellidos"
+                                            placeholder="Apellidos" maxlength="70">
+                                    </div>
+                                    <div>
+                                        <label
+                                            style="display: block; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 6px; text-transform: uppercase;">Teléfono
+                                            (7 o 10 dígitos)</label>
+                                        <input type="text" class="crud-input" name="telefono" id="form-telefono"
+                                            placeholder="Teléfono" inputmode="numeric" maxlength="10">
+                                    </div>
+                                </div>
                                 <small style="color: #a0aec0; display: block; margin-top: 12px; font-size: 11px;">* Al
                                     editar, si dejas la contraseña en blanco, se mantendrá la contraseña cifrada
-                                    actual.</small>
+                                    actual. Para crear con datos personales, completa los 4 campos (documento, nombres,
+                                    apellidos y teléfono); al editar se guardan junto con la cuenta. La foto de perfil
+                                    solo la cambia cada usuario desde su perfil.</small>
                             </form>
                         </div>
                     </div>
@@ -239,6 +277,8 @@ if (!isset($registros)) {
                                         <th><b>ID_Usuario</b></th>
                                         <th><b>Correo (Email)</b></th>
                                         <th><b>Nombre</b></th>
+                                        <th><b>Documento</b></th>
+                                        <th><b>Teléfono</b></th>
                                         <th><b>Rol</b></th>
                                         <th><b>Estado</b></th>
                                         <th style="text-align: right;"><b>Acciones</b></th>
@@ -251,6 +291,10 @@ if (!isset($registros)) {
                                             $uemail = $row['Email'] ?? $row['email'] ?? '';
                                             $urol = $row['Rol'] ?? $row['rol'] ?? 'Cliente';
                                             $unombre = $row['nombre'] ?? explode('@', $uemail)[0] ?? '';
+                                            $unom = $row['Nombres'] ?? $row['nombres'] ?? '';
+                                            $uape = $row['Apellidos'] ?? $row['apellidos'] ?? '';
+                                            $udoc = $row['Documento'] ?? '';
+                                            $utel = $row['Telefono'] ?? '';
                                             $uactivo = (int)($row['Activo'] ?? 1);
                                             $selfId = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
                                             $isSelf = ((string)$uid === (string)$selfId);
@@ -266,6 +310,12 @@ if (!isset($registros)) {
                                                 <td style="color: #4a5568;">
                                                     <?php echo htmlspecialchars($unombre); ?>
                                                 </td>
+                                                <td style="color: #4a5568;">
+                                                    <?php echo htmlspecialchars($udoc !== '' ? $udoc : '-'); ?>
+                                                </td>
+                                                <td style="color: #4a5568;">
+                                                    <?php echo htmlspecialchars($utel !== '' ? $utel : '-'); ?>
+                                                </td>
                                                 <td>
                                                     <span
                                                         style="background: #edf2f7; padding: 4px 8px; border-radius: 4px; color: #4a5568;"><?php echo htmlspecialchars($urol); ?></span>
@@ -279,20 +329,32 @@ if (!isset($registros)) {
                                                 </td>
                                                 <td style="text-align: right;">
                                                     <button type="button" class="btn-action-edit"
-                                                        onclick="editarRegistro('<?php echo htmlspecialchars($uid, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($uemail, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($urol, ENT_QUOTES); ?>')">
+                                                        onclick="editarRegistro('<?php echo htmlspecialchars($uid, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($uemail, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($urol, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($unom, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($uape, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($utel, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($udoc, ENT_QUOTES); ?>')">
                                                         <i class="fa-solid fa-pen-to-square"></i> Editar
                                                     </button>
                                                     <?php if ($__isAdmin && !$isSelf): ?>
                                                     <?php if ($uactivo === 1): ?>
-                                                    <button type="button" class="btn-action-delete"
-                                                        onclick="askToggleUser('index.php?action=crud&toggle_id=<?php echo urlencode($uid); ?>&estado=0', 'Inactivar usuario', '¿Quieres inactivar a <?php echo htmlspecialchars(str_replace("'", "", $uemail), ENT_QUOTES); ?>? No se borra por términos legales, solo se desactiva el acceso.')">
-                                                        <i class="fa-solid fa-ban"></i> Inactivar
-                                                    </button>
+                                                    <form method="POST" action="index.php?action=crud" class="toggle-user-form" style="display:inline;">
+                                                        <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                                        <input type="hidden" name="user_toggle" value="1">
+                                                        <input type="hidden" name="toggle_id" value="<?php echo htmlspecialchars($uid, ENT_QUOTES); ?>">
+                                                        <input type="hidden" name="estado" value="0">
+                                                        <button type="button" class="btn-action-delete"
+                                                            onclick="askToggleUser(this, 'Inactivar usuario', '¿Quieres inactivar a <?php echo htmlspecialchars(str_replace("'", "", $uemail), ENT_QUOTES); ?>? No se borra por términos legales, solo se desactiva el acceso.')">
+                                                            <i class="fa-solid fa-ban"></i> Inactivar
+                                                        </button>
+                                                    </form>
                                                     <?php else: ?>
-                                                    <button type="button" class="btn-crud-save"
-                                                        onclick="askToggleUser('index.php?action=crud&toggle_id=<?php echo urlencode($uid); ?>&estado=1', 'Activar usuario', '¿Quieres reactivar a <?php echo htmlspecialchars(str_replace("'", "", $uemail), ENT_QUOTES); ?>? Volverá a tener acceso al sistema.')">
-                                                        <i class="fa-solid fa-check"></i> Activar
-                                                    </button>
+                                                    <form method="POST" action="index.php?action=crud" class="toggle-user-form" style="display:inline;">
+                                                        <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                                        <input type="hidden" name="user_toggle" value="1">
+                                                        <input type="hidden" name="toggle_id" value="<?php echo htmlspecialchars($uid, ENT_QUOTES); ?>">
+                                                        <input type="hidden" name="estado" value="1">
+                                                        <button type="button" class="btn-crud-save"
+                                                            onclick="askToggleUser(this, 'Activar usuario', '¿Quieres reactivar a <?php echo htmlspecialchars(str_replace("'", "", $uemail), ENT_QUOTES); ?>? Volverá a tener acceso al sistema.')">
+                                                            <i class="fa-solid fa-check"></i> Activar
+                                                        </button>
+                                                    </form>
                                                     <?php endif; ?>
                                                     <?php endif; ?>
                                                 </td>
@@ -300,7 +362,7 @@ if (!isset($registros)) {
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="6"
+                                            <td colspan="8"
                                                 style="text-align: center; color: #a0aec0; padding: 40px; font-style: italic;">
                                                 No hay usuarios registrados actualmente.
                                             </td>
@@ -336,13 +398,17 @@ if (!isset($registros)) {
             dropdown.classList.toggle('open');
         }
 
-        function editarRegistro(id, email, rol) {
+        function editarRegistro(id, email, rol, nombres, apellidos, telefono, documento) {
             document.getElementById('form-title-text').innerText = "MODIFICAR USUARIO";
             document.getElementById('form-card-title').innerText = "Editando a " + email;
             document.getElementById('form-id').value = id;
             document.getElementById('form-email').value = email;
             document.getElementById('form-password').value = '';
             document.getElementById('form-password').placeholder = "Nueva contraseña (opcional)";
+            document.getElementById('form-documento').value = documento || '';
+            document.getElementById('form-nombres').value = nombres || '';
+            document.getElementById('form-apellidos').value = apellidos || '';
+            document.getElementById('form-telefono').value = telefono || '';
             var rolEl = document.getElementById('form-rol');
             // Solo Admin tiene SELECT editable; Empleado tiene hidden bloqueado
             if (rolEl && rol && rolEl.tagName === 'SELECT') {
@@ -360,6 +426,10 @@ if (!isset($registros)) {
             document.getElementById('form-email').value = '';
             document.getElementById('form-password').value = '';
             document.getElementById('form-password').placeholder = "Ingrese la contraseña";
+            document.getElementById('form-documento').value = '';
+            document.getElementById('form-nombres').value = '';
+            document.getElementById('form-apellidos').value = '';
+            document.getElementById('form-telefono').value = '';
             var rolEl2 = document.getElementById('form-rol');
             if (rolEl2 && rolEl2.tagName === 'SELECT') {
                 rolEl2.value = 'Cliente';
@@ -385,10 +455,10 @@ if (!isset($registros)) {
             });
         }
 
-        // Modal personalizada ACIDO (inactivar/activar) - sin "localhost dice"
-        let confirmHref = '';
-        function askToggleUser(href, title, message) {
-            confirmHref = href;
+        // Modal personalizada ACIDO (inactivar/activar) - envía el form POST del botón
+        let confirmForm = null;
+        function askToggleUser(btn, title, message) {
+            confirmForm = btn ? btn.closest('form') : null;
             document.getElementById('acidoModalTitle').innerText = title;
             document.getElementById('acidoModalMsg').innerText = message;
             var btn = document.getElementById('acidoModalConfirm');
@@ -398,10 +468,10 @@ if (!isset($registros)) {
         }
         function closeAcidoModal() {
             document.getElementById('acidoModal').style.display = 'none';
-            confirmHref = '';
+            confirmForm = null;
         }
         function confirmAcidoModal() {
-            if (confirmHref) window.location.href = confirmHref;
+            if (confirmForm) confirmForm.submit();
         }
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeAcidoModal();

@@ -89,8 +89,9 @@ if (!isset($items)) { $items = []; }
                     <div class="divider-vertical"></div>
                     <div class="user-info-dropdown" style="position: relative;">
                         <div class="user-info" id="userMenuBtn" style="cursor: pointer;">
-                            <span><?php echo htmlspecialchars($_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? 'Usuario'); ?> (<?php echo htmlspecialchars($__rol); ?>)</span>
-                            <div class="avatar"></div>
+                            <span class="user-badge"><strong><?php echo htmlspecialchars($_SESSION["user"]["nombre_completo"] ?? $_SESSION["user"]["nombre"] ?? $_SESSION["user"]["Email"] ?? 'Usuario'); ?></strong><small><?php echo htmlspecialchars($__rol); ?></small></span>
+                            <?php $___avNb = $_SESSION["user"]["nombre_completo"] ?? $_SESSION["user"]["nombre"] ?? 'U'; $___avNbT = trim((string)$___avNb); $___avIni = $___avNbT !== '' ? (function_exists('mb_strtoupper') ? mb_strtoupper(mb_substr($___avNbT, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($___avNbT, 0, 1))) : 'U'; $___avFoto = $_SESSION["user"]["foto"] ?? $_SESSION["user"]["Foto"] ?? null; ?>
+                            <div class="avatar" title="<?php echo htmlspecialchars($___avNbT); ?>"><?php if (!empty($___avFoto)): ?><img src="<?php echo htmlspecialchars($___avFoto); ?>" alt="Foto de perfil"><?php else: ?><?php echo htmlspecialchars($___avIni); ?><?php endif; ?></div>
                         </div>
                         <div class="dropdown-menu-user" id="userDropdownMenu">
                             <a href="index.php?action=profile" class="dropdown-user-item">
@@ -135,6 +136,7 @@ if (!isset($items)) { $items = []; }
                             </div>
                             <form action="index.php?action=catalogo" method="POST" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
                                 <input type="hidden" name="cart_action" value="add">
+                                <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
                                 <input type="number" name="qty" value="1" min="1" max="10" class="crud-input" style="width:65px;">
                                 <button type="submit" class="btn-crud-save" style="flex:1;"><i class="fa-solid fa-cart-plus"></i> Agregar</button>

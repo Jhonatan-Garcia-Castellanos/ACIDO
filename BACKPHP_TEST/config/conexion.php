@@ -1,15 +1,19 @@
 <?php
-// config/conexion.php
+// config/conexion.php — Lee credenciales del .env (ver .env.example).
+require_once __DIR__ . "/../lib/Env.php";
+Env::load(dirname(__DIR__));
+
 class Conexion {
-    private $host = "localhost";
-    private $dbname = "proyecto_acido";
-    private $user = "root";
-    private $password = "";
     public $conn;
 
     public function __construct() {
+        $host    = Env::get("DB_HOST", "localhost");
+        $dbname  = Env::get("DB_NAME", "proyecto_acido");
+        $user    = Env::get("DB_USER", "root");
+        $pass    = Env::get("DB_PASS", "");
+        $charset = Env::get("DB_CHARSET", "utf8mb4");
         try {
-            $this->conn = new PDO("mysql:host={$this->host};dbname={$this->dbname};charset=utf8mb4", $this->user, $this->password);
+            $this->conn = new PDO("mysql:host={$host};dbname={$dbname};charset={$charset}", $user, $pass);
             // Corrección: PDO con mayúsculas sostenidas
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);

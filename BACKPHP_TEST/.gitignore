@@ -1,0 +1,2 @@
+# Secretos locales: cada integrante usa su propio .env (ver .env.example)
+.env

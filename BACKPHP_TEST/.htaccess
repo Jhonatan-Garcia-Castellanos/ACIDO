@@ -1,0 +1,4 @@
+# Bloquear acceso web a archivos sensibles (Apache 2.4 / XAMPP)
+<Files ".env">
+    Require all denied
+</Files>

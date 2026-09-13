@@ -42,12 +42,13 @@
                 <!-- Mensaje de error para JavaScript -->
                 <div id="errorMsg" class="error-msg" style="display: none;"></div>
 
-                <!-- UN SOLO FORMULARIO CON EL ID CORRECTO -->
+                <!-- UN SOLO FORMULARIO CON EL ID CORRECTO — RF 1.2: correo o seudónimo -->
                 <form id="loginForm" method="POST">
                     <input type="hidden" name="action" value="login">
+                    <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
 
                     <div class="input-group">
-                        <input type="email" name="email" placeholder="Correo electrónico" required>
+                        <input type="text" name="email" placeholder="Correo o seudónimo" required autocomplete="username">
                     </div>
 
                     <div class="input-group">
@@ -110,7 +111,7 @@
                 if (data.success) {
                     window.location.href = data.redirect || '/ACIDO/BACKPHP_TEST/index.php?action=dashboard';
                 } else {
-                    errorContainer.textContent = data.message || 'Correo o contraseña incorrectos.';
+                    errorContainer.textContent = data.message || 'usuario o contraseña incorrectos.';
                     errorContainer.style.display = 'block';
                 }
             } catch (error) {
