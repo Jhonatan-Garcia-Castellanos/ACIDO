@@ -327,4 +327,98 @@ class Mailer
             return ['ok' => false, 'error' => 'No se pudo enviar aviso de Kardex'];
         }
     }
+
+    /**
+     * RF 4.7: aviso de confirmación tras cambio de clave logueado (no bloqueante).
+     * Adaptado a convenciones del equipo: Timeout, sendWithRetry y registrar().
+     * Retorna [ok=>bool, error=>?string].
+     */
+    public function enviarAvisoCambioClave($paraEmail)
+    {
+        if (trim((string)$paraEmail) === '') {
+            return ['ok' => false, 'error' => 'Sin destinatario'];
+        }
+        if (!$this->isConfigured()) {
+            error_log("Mailer::avisoClave: SMTP sin configurar, se omite aviso a $paraEmail.");
+            $this->registrar('clave', $paraEmail, '(sin asunto)', false, 'SMTP sin configurar (.env MAIL_*)');
+            return ['ok' => false, 'error' => 'SMTP sin configurar.'];
+        }
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host = $this->cfg['host'];
+            $mail->Port = (int)$this->cfg['port'];
+            $mail->Timeout = 15;
+            $mail->SMTPAuth = true;
+            $mail->Username = $this->cfg['username'];
+            $mail->Password = $this->cfg['password'];
+            if (!empty($this->cfg['encryption'])) {
+                $mail->SMTPSecure = $this->cfg['encryption'] === 'ssl'
+                    ? PHPMailer::ENCRYPTION_SMTPS
+                    : PHPMailer::ENCRYPTION_STARTTLS;
+            } else {
+                $mail->SMTPSecure = false;
+                $mail->SMTPAutoTLS = false;
+            }
+            $mail->CharSet = 'UTF-8';
+            $mail->setFrom($this->cfg['from_email'], $this->cfg['from_name']);
+            $mail->addAddress($paraEmail);
+            $mail->isHTML(true);
+            $mail->Subject = 'Tu contraseña fue actualizada — ÁCIDO Colombia';
+
+            // Logo embebido (CID): se ve sin hosting externo ni "mostrar imágenes"
+            $logoCid = null;
+            foreach (['acidoo.png', 'LOGO2.png', 'iconooo.png'] as $img) {
+                $path = __DIR__ . '/../public/img/' . $img;
+                if (is_file($path)) {
+                    $mail->addEmbeddedImage($path, 'acido_logo', $img);
+                    $logoCid = 'cid:acido_logo';
+                    break;
+                }
+            }
+
+            $safeEmail = htmlspecialchars($paraEmail, ENT_QUOTES, 'UTF-8');
+            $fecha = date('d/m/Y H:i');
+            $linkRecup = $this->getAppUrl() . '/index.php?action=forgot_password';
+            $logoHtml = $logoCid
+                ? '<img src="' . $logoCid . '" alt="ÁCIDO Colombia" width="150" style="display:block;border:0;max-width:150px;height:auto;">'
+                : '<span style="font-size:26px;font-weight:bold;letter-spacing:4px;color:#ffffff;">ACIDO</span>';
+
+            $mail->Body = '<!DOCTYPE html><html lang="es"><body style="margin:0;padding:0;background-color:#f4f5f7;">'
+                . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:24px 12px;">'
+                . '<tr><td align="center">'
+                . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;">'
+                // Encabezado marca
+                . '<tr><td align="center" style="background-color:#1C3B4A;padding:32px 24px 24px;">' . $logoHtml
+                . '<div style="margin-top:12px;font-size:12px;letter-spacing:3px;color:#D48A3A;font-weight:bold;">COLOMBIA</div></td></tr>'
+                . '<tr><td style="background-color:#1cc88a;height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>'
+                // Cuerpo
+                . '<tr><td style="padding:32px 36px 8px;font-family:Arial,Helvetica,sans-serif;color:#2d3748;">'
+                . '<h1 style="margin:0 0 12px;font-size:22px;color:#1C3B4A;">Contraseña actualizada</h1>'
+                . '<p style="margin:0 0 12px;font-size:14px;line-height:22px;">Hola, <b>' . $safeEmail . '</b></p>'
+                . '<p style="margin:0 0 20px;font-size:14px;line-height:22px;">Te confirmamos que la contraseña de tu cuenta de <b>ÁCIDO Colombia</b> fue cambiada el <b>' . $fecha . '</b>. Si fuiste tú, no necesitas hacer nada.</p>'
+                // Botón CTA
+                . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 20px;">'
+                . '<a href="' . htmlspecialchars($linkRecup, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background-color:#e53e3e;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:14px 36px;border-radius:8px;">No fui yo, recuperar mi cuenta</a>'
+                . '</td></tr></table>'
+                . '<p style="margin:0;font-size:12px;line-height:20px;color:#718096;">Si no reconoces este cambio, usa el botón de inmediato: el enlace de recuperación vence en 15 minutos.</p>'
+                . '</td></tr>'
+                // Pie
+                . '<tr><td align="center" style="background-color:#1C3B4A;padding:20px 24px;font-family:Arial,Helvetica,sans-serif;">'
+                . '<div style="font-size:12px;color:#ffffff;font-weight:bold;letter-spacing:2px;">ACIDO COLOMBIA</div>'
+                . '<div style="font-size:11px;color:#a0aec0;margin-top:6px;">Este es un mensaje automático, no lo respondas. &copy; ' . date('Y') . '</div>'
+                . '</td></tr>'
+                . '</table>'
+                . '</td></tr></table>'
+                . '</body></html>';
+            $mail->AltBody = "Hola $paraEmail\n\nTu contraseña de ÁCIDO Colombia fue cambiada el $fecha. Si no fuiste tú, recupera tu cuenta aquí: $linkRecup";
+            $r = $this->sendWithRetry($mail, 'avisoClave');
+            $this->registrar('clave', $paraEmail, $mail->Subject, !empty($r['ok']), $r['ok'] ? 'ENVIADO' : ($r['error'] ?? 'fallo'));
+            return $r;
+        } catch (Exception $e) {
+            error_log("Mailer::avisoCambioClave: " . $e->getMessage());
+            $this->registrar('clave', $paraEmail ?? '', isset($mail) ? $mail->Subject : '(sin asunto)', false, substr($e->getMessage(), 0, 200));
+            return ['ok' => false, 'error' => 'No se pudo enviar el aviso.'];
+        }
+    }
 }
