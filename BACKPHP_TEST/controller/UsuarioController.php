@@ -29,8 +29,12 @@ class UsuarioController {
         return $this->usuarioModel->cambiarPassword($email, $actualPassword, $nuevaPassword);
     }
 
-    public function listar() {
-        return $this->usuarioModel->obtenerTodos();
+    public function listar($page = 1, $per = 10, $q = '', $order = 'ID_Usuario', $dir = 'DESC') {
+        return $this->usuarioModel->obtenerTodos($page, $per, $q, $order, $dir);
+    }
+
+    public function contar($q = '') {
+        return $this->usuarioModel->contarUsuarios($q);
     }
 
     public function obtenerPorId($id) {

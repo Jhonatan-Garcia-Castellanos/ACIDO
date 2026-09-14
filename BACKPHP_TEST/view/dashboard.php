@@ -86,6 +86,10 @@ if (!isset($_SESSION["user"])) {
                 <i class="fa-solid fa-receipt"></i>
                 <span class="sidebar-text"><?php echo in_array($__r,['Administrador','Empleado'],true)?'Ventas':'Mis compras'; ?></span>
             </a>
+            <a href="index.php?action=pqr" class="nav-item">
+                <i class="fa-solid fa-headset"></i>
+                <span class="sidebar-text">PQR y Ayuda</span>
+            </a>
             <?php if (in_array($__r, ['Administrador','Empleado'], true)): ?>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item">
@@ -120,10 +124,6 @@ if (!isset($_SESSION["user"])) {
                             <div style="padding:12px 14px;font-weight:800;border-bottom:1px solid #edf2f7;"><i class="fa-solid fa-triangle-exclamation" style="color:#e53e3e;"></i> Stock bajo (<?php echo (int)$alertCount; ?>) — <a href="index.php?action=inventario&filtro=bajo" style="font-size:12px;">Ver</a></div>
                             <div id="stockDropdownList"><div style="padding:14px;color:#718096;font-size:13px;">Cargando…</div></div>
                         </div>
-                    </div>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span class="badge yellow">7</span>
                     </div>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
@@ -175,7 +175,11 @@ if (!isset($_SESSION["user"])) {
                     </h2>
                     <div style="display:flex;align-items:center;gap:14px;">
                         <small id="updatedAt" style="color:#858796;">actualizado ahora mismo</small>
-                        <a class="btn-report" style="text-decoration:none;" href="index.php?action=reporte_csv"><i class="fa-solid fa-download"></i> Generar Reporte</a>
+                        <span style="display:flex;gap:8px;align-items:center;" title="Exportan todo (usa Ventas para filtrar por fechas)">
+                            <small style="color:#858796;">Exportar:</small>
+                            <a class="btn-report" style="text-decoration:none;" href="index.php?action=reporte_csv"><i class="fa-solid fa-file-csv"></i> CSV</a>
+                            <a class="btn-report" style="text-decoration:none;" href="index.php?action=reporte_pdf"><i class="fa-solid fa-file-pdf"></i> PDF</a>
+                        </span>
                     </div>
                 </div>
 

@@ -38,6 +38,7 @@ $rol = $u["Rol"] ?? $u["rol"] ?? 'Cliente';
             <a href="index.php?action=catalogo" class="nav-item"><i class="fa-solid fa-store"></i><span class="sidebar-text">Catálogo</span></a>
             <a href="index.php?action=carrito" class="nav-item"><i class="fa-solid fa-cart-shopping"></i><span class="sidebar-text">Carrito<?php $nc=array_sum($_SESSION['cart']??[]); if($nc>0) echo " ($nc)"; ?></span></a>
             <a href="index.php?action=ventas" class="nav-item"><i class="fa-solid fa-receipt"></i><span class="sidebar-text"><?php echo in_array($rol,['Administrador','Empleado'],true)?'Ventas':'Mis compras'; ?></span></a>
+            <a href="index.php?action=pqr" class="nav-item"><i class="fa-solid fa-headset"></i><span class="sidebar-text">PQR y Ayuda</span></a>
             <?php if (in_array($rol, ['Administrador','Empleado'], true)): ?>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item"><i class="fa-solid fa-boxes-stacked"></i><span class="sidebar-text">Inventario</span></a>
@@ -49,6 +50,7 @@ $rol = $u["Rol"] ?? $u["rol"] ?? 'Cliente';
                 <div class="search-bar"><input type="text" placeholder="Buscar..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
                 <div class="topbar-user">
                     <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
+                    <?php require_once __DIR__ . "/partials/stock_bell.php"; ?>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
                         <?php $ncart=array_sum($_SESSION['cart']??[]); if($ncart>0): ?><span class="badge red"><?php echo $ncart; ?></span><?php endif; ?>
@@ -83,5 +85,6 @@ $rol = $u["Rol"] ?? $u["rol"] ?? 'Cliente';
         </main>
     </div>
     <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

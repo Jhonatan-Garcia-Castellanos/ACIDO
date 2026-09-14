@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 14-09-2026 a las 18:16:39
+-- Tiempo de generación: 14-09-2026 a las 23:34:53
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -20,7 +20,9 @@ SET time_zone = "+00:00";
 --
 -- Base de datos: `proyecto_acido`
 --
+CREATE DATABASE IF NOT EXISTS `proyecto_acido` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+USE `proyecto_acido`;
 -- --------------------------------------------------------
 
 --
@@ -48,7 +50,15 @@ INSERT INTO `alertas_sistema` (`ID_Alerta`, `Tipo`, `Mensaje`, `Fecha_Creacion`,
 (5, 'STOCK_BAJO', 'Producto Chaqueta ACIDO Oversize en nivel crítico.', '2026-09-14 08:51:00', 0, NULL),
 (6, 'STOCK_BAJO', 'Stock bajo: Chaqueta ACIDO Oversize (6/10)', '2026-09-14 10:27:53', 0, 3),
 (7, 'STOCK_BAJO', 'Stock bajo: Gorra ACIDO Bordada (0/10)', '2026-09-14 10:27:53', 0, 4),
-(9, 'RRHH', 'Empleado registrado: Sistema Kardex', '2026-09-14 10:27:55', 0, NULL);
+(9, 'RRHH', 'Empleado registrado: Sistema Kardex', '2026-09-14 10:27:55', 0, NULL),
+(10, 'PQR_UPDATE', 'PQR ID 1 cambió a estado En Proceso', '2026-09-14 15:03:02', 0, NULL),
+(11, 'PQR_UPDATE', 'PQR ID 1 cambió a estado Cerrado', '2026-09-14 15:03:02', 0, NULL),
+(12, 'PQR_UPDATE', 'PQR ID 2 cambió a estado Cerrado', '2026-09-14 15:07:25', 0, NULL),
+(13, 'SEGURIDAD', 'Rol modificado para: jhona@gmail.com', '2026-09-14 15:14:36', 0, NULL),
+(14, 'RRHH', 'Empleado registrado: Jhona Gar', '2026-09-14 15:14:36', 0, NULL),
+(15, 'LISTA_ESPERA', 'Nuevo interesado en producto ID: 4', '2026-09-14 15:32:15', 0, NULL),
+(16, 'ENTREGA', 'Pedido entregado ID: 2', '2026-09-14 15:33:43', 0, NULL),
+(17, 'LISTA_ESPERA', 'Nuevo interesado en producto ID: 4', '2026-09-14 15:48:37', 0, NULL);
 
 -- --------------------------------------------------------
 
@@ -153,7 +163,9 @@ INSERT INTO `cliente` (`ID_Cliente`, `Nombres`, `Apellidos`, `Documento`, `Telef
 (2, 'María', 'González', '2000000001', '3001112233', NULL),
 (3, 'Carlos', 'Ramírez', '2000000002', '3004445566', NULL),
 (11, 'Jhona', 'Gar', '5252525252', '3202145635', NULL),
-(13, 'Jhonatan', 'Garcia', '111111111111', '3202336326', NULL);
+(13, 'Jhonatan', 'Garcia', '111111111111', '3202336326', NULL),
+(14, 'Jhonatan', 'Garcia', '1010101010', '3204732916', NULL),
+(15, 'Testbuy', '', NULL, NULL, NULL);
 
 --
 -- Disparadores `cliente`
@@ -187,9 +199,11 @@ CREATE TABLE `control_accesos` (
 --
 
 INSERT INTO `control_accesos` (`ID_Control`, `ID_Usuario`, `Email`, `Intentos_Fallidos`, `Ultimo_Intento`, `Bloqueado_Hasta`) VALUES
-(1, 1, 'admin@acido.local', 0, '2026-09-14 11:16:15', NULL),
-(27, 10, 'jhona@gmail.com', 0, '2026-09-14 11:11:35', NULL),
-(31, 12, 'test.jhona.acido@gmail.com', 0, '2026-09-14 10:19:37', NULL);
+(1, 1, 'admin@acido.local', 3, '2026-09-14 16:13:47', NULL),
+(27, 10, 'jhona@gmail.com', 0, '2026-09-14 15:15:52', NULL),
+(31, 12, 'test.jhona.acido@gmail.com', 0, '2026-09-14 10:19:37', NULL),
+(50, 13, 'jhonatan@gmail.com', 0, '2026-09-14 15:36:44', NULL),
+(53, 14, 'testbuy@acido.local', 0, '2026-09-14 15:44:08', NULL);
 
 --
 -- Disparadores `control_accesos`
@@ -274,7 +288,8 @@ INSERT INTO `detalle_venta` (`ID_Detalle`, `ID_Venta`, `ID_Producto`, `Cantidad`
 (26, 21, 3, 2, 199900.00),
 (27, 22, 2, 1, 129900.00),
 (28, 23, 3, 1, 199900.00),
-(29, 24, 2, 1, 129900.00);
+(29, 24, 2, 1, 129900.00),
+(32, 27, 3, 1, 199900.00);
 
 --
 -- Disparadores `detalle_venta`
@@ -334,7 +349,8 @@ CREATE TABLE `empleado` (
 --
 
 INSERT INTO `empleado` (`ID_Empleado`, `Nombres`, `Apellidos`, `ID_Cargo`, `ID_Ciudad`, `deleted_at`) VALUES
-(1, 'Sistema', 'Kardex', 1, 1, NULL);
+(1, 'Sistema', 'Kardex', 1, 1, NULL),
+(2, 'Jhona', 'Gar', 1, 1, NULL);
 
 --
 -- Disparadores `empleado`
@@ -383,11 +399,18 @@ INSERT INTO `factura` (`ID_Factura`, `Numero_Factura`, `Fecha_Emision`, `ID_Vent
 (21, 'FAC-0026', '2026-09-14 09:49:47', 21),
 (22, 'FAC-0027', '2026-09-14 09:50:22', 22),
 (23, 'FAC-0028', '2026-09-14 10:27:53', 23),
-(24, 'FAC-0029', '2026-09-14 10:28:40', 24);
+(24, 'FAC-0029', '2026-09-14 10:28:40', 24),
+(27, 'FAC-0030', '2026-09-14 15:37:50', 27);
 
 --
 -- Disparadores `factura`
 --
+DELIMITER $$
+CREATE TRIGGER `trg_impedir_borrado_factura` BEFORE DELETE ON `factura` FOR EACH ROW BEGIN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Facturas inmutables, no se pueden borrar.';
+END
+$$
+DELIMITER ;
 DELIMITER $$
 CREATE TRIGGER `trg_impedir_edicion_factura` BEFORE UPDATE ON `factura` FOR EACH ROW BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Facturas inmutables.';
@@ -460,6 +483,13 @@ CREATE TABLE `lista_espera_stock` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
+-- Volcado de datos para la tabla `lista_espera_stock`
+--
+
+INSERT INTO `lista_espera_stock` (`ID_Espera`, `Nombre_Completo`, `Email`, `ID_Producto`, `Fecha_Registro`, `Notificado`) VALUES
+(2, 'Jhonatan Garcia', 'jhonatan@gmail.com', 4, '2026-09-14 15:48:37', 0);
+
+--
 -- Disparadores `lista_espera_stock`
 --
 DELIMITER $$
@@ -517,7 +547,8 @@ CREATE TABLE `movimiento_inventario` (
 
 INSERT INTO `movimiento_inventario` (`ID_Movimiento`, `ID_Producto`, `Tipo_Movimiento`, `Cantidad`, `Motivo`, `Fecha_Movimiento`, `ID_Empleado`) VALUES
 (1, 3, 'Salida', -1, 'Salida por venta #23', '2026-09-14 10:27:55', 1),
-(2, 2, 'Salida', -1, 'Salida por venta #24', '2026-09-14 10:28:40', 1);
+(2, 2, 'Salida', -1, 'Salida por venta #24', '2026-09-14 10:28:40', 1),
+(3, 3, 'Salida', -1, 'Salida por venta #27', '2026-09-14 15:37:54', 1);
 
 -- --------------------------------------------------------
 
@@ -542,7 +573,10 @@ CREATE TABLE `notificacion_log` (
 INSERT INTO `notificacion_log` (`ID_Log`, `Fecha`, `Tipo`, `Destinatarios`, `Asunto`, `Resultado`, `Detalle`) VALUES
 (1, '2026-09-14 10:26:49', 'clave', 'merge.tester@acido.local', 'Tu contraseña fue actualizada — ÁCIDO Colombia', 'ok', 'ENVIADO'),
 (2, '2026-09-14 10:27:55', 'stock', 'admin@acido.local', 'Stock bajo: 2 producto(s) — ÁCIDO Colombia', 'ok', 'ENVIADO'),
-(3, '2026-09-14 11:13:25', 'clave', 'admin@acido.local', 'Tu contraseña fue actualizada — ÁCIDO Colombia', 'ok', 'ENVIADO');
+(3, '2026-09-14 11:13:25', 'clave', 'admin@acido.local', 'Tu contraseña fue actualizada — ÁCIDO Colombia', 'ok', 'ENVIADO'),
+(4, '2026-09-14 15:30:43', 'compra', 'test.jhona.acido@gmail.com', 'Confirmación de compra #9999 — ÁCIDO Colombia', 'ok', 'ENVIADO'),
+(5, '2026-09-14 15:37:54', 'compra', 'jhonatan@gmail.com', 'Confirmación de compra #27 — ÁCIDO Colombia', 'ok', 'ENVIADO'),
+(6, '2026-09-14 15:41:29', 'compra', 'testbuy@acido.local', 'Confirmación de compra #28 — ÁCIDO Colombia', 'ok', 'ENVIADO');
 
 -- --------------------------------------------------------
 
@@ -557,6 +591,7 @@ CREATE TABLE `pago` (
   `Monto_Pagado` decimal(10,2) NOT NULL,
   `Entidad_Bancaria` varchar(100) DEFAULT NULL,
   `Numero_Referencia` varchar(100) DEFAULT NULL,
+  `Comprobante_URL` varchar(255) DEFAULT NULL,
   `Fecha_Pago` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -564,26 +599,27 @@ CREATE TABLE `pago` (
 -- Volcado de datos para la tabla `pago`
 --
 
-INSERT INTO `pago` (`ID_Pago`, `ID_Venta`, `ID_Metodo`, `Monto_Pagado`, `Entidad_Bancaria`, `Numero_Referencia`, `Fecha_Pago`) VALUES
-(1, 1, 1, 179700.00, NULL, NULL, '2026-04-10 11:05:00'),
-(2, 2, 2, 249700.00, NULL, NULL, '2026-05-12 15:35:00'),
-(3, 3, 3, 259800.00, NULL, NULL, '2026-06-15 10:05:00'),
-(4, 4, 1, 439500.00, NULL, NULL, '2026-07-20 16:50:00'),
-(5, 5, 4, 789500.00, NULL, NULL, '2026-08-18 12:25:00'),
-(6, 6, 5, 119800.00, NULL, NULL, '2026-09-05 09:20:00'),
-(7, 7, 2, 59900.00, NULL, NULL, '2026-09-08 14:05:00'),
-(8, 8, 3, 129900.00, NULL, NULL, '2026-09-09 11:35:00'),
-(9, 9, 1, 199900.00, NULL, NULL, '2026-09-10 17:05:00'),
-(10, 10, 2, 249700.00, NULL, NULL, '2026-09-11 13:15:00'),
-(11, 11, 4, 129900.00, NULL, NULL, '2026-09-12 10:45:00'),
-(12, 12, 5, 259800.00, NULL, NULL, '2026-09-13 18:30:00'),
-(13, 13, 1, 179700.00, NULL, NULL, '2026-09-14 10:35:00'),
-(14, 14, 2, 259800.00, NULL, NULL, '2026-09-14 12:20:00'),
-(15, 15, 1, 199900.00, NULL, NULL, '2026-09-14 08:51:00'),
-(21, 21, 6, 399800.00, 'Tarjeta de crédito / débito', '•••• •••• •••• 1111', '2026-09-14 09:49:47'),
-(22, 22, 2, 129900.00, 'Nequi', '•••••• 0214', '2026-09-14 09:50:22'),
-(23, 23, 5, 199900.00, 'Contra entrega', 'Pago en Contra entrega', '2026-09-14 10:27:53'),
-(24, 24, 5, 129900.00, 'Contra entrega', 'Pago en Contra entrega', '2026-09-14 10:28:40');
+INSERT INTO `pago` (`ID_Pago`, `ID_Venta`, `ID_Metodo`, `Monto_Pagado`, `Entidad_Bancaria`, `Numero_Referencia`, `Comprobante_URL`, `Fecha_Pago`) VALUES
+(1, 1, 1, 179700.00, NULL, NULL, NULL, '2026-04-10 11:05:00'),
+(2, 2, 2, 249700.00, NULL, NULL, NULL, '2026-05-12 15:35:00'),
+(3, 3, 3, 259800.00, NULL, NULL, NULL, '2026-06-15 10:05:00'),
+(4, 4, 1, 439500.00, NULL, NULL, NULL, '2026-07-20 16:50:00'),
+(5, 5, 4, 789500.00, NULL, NULL, NULL, '2026-08-18 12:25:00'),
+(6, 6, 5, 119800.00, NULL, NULL, NULL, '2026-09-05 09:20:00'),
+(7, 7, 2, 59900.00, NULL, NULL, NULL, '2026-09-08 14:05:00'),
+(8, 8, 3, 129900.00, NULL, NULL, NULL, '2026-09-09 11:35:00'),
+(9, 9, 1, 199900.00, NULL, NULL, NULL, '2026-09-10 17:05:00'),
+(10, 10, 2, 249700.00, NULL, NULL, NULL, '2026-09-11 13:15:00'),
+(11, 11, 4, 129900.00, NULL, NULL, NULL, '2026-09-12 10:45:00'),
+(12, 12, 5, 259800.00, NULL, NULL, NULL, '2026-09-13 18:30:00'),
+(13, 13, 1, 179700.00, NULL, NULL, NULL, '2026-09-14 10:35:00'),
+(14, 14, 2, 259800.00, NULL, NULL, NULL, '2026-09-14 12:20:00'),
+(15, 15, 1, 199900.00, NULL, NULL, NULL, '2026-09-14 08:51:00'),
+(21, 21, 6, 399800.00, 'Tarjeta de crédito / débito', '•••• •••• •••• 1111', NULL, '2026-09-14 09:49:47'),
+(22, 22, 2, 129900.00, 'Nequi', '•••••• 0214', NULL, '2026-09-14 09:50:22'),
+(23, 23, 5, 199900.00, 'Contra entrega', 'Pago en Contra entrega', NULL, '2026-09-14 10:27:53'),
+(24, 24, 5, 129900.00, 'Contra entrega', 'Pago en Contra entrega', NULL, '2026-09-14 10:28:40'),
+(27, 27, 6, 199900.00, 'Tarjeta de crédito / débito', '•••• •••• •••• 1111', NULL, '2026-09-14 15:37:50');
 
 --
 -- Disparadores `pago`
@@ -608,10 +644,12 @@ DELIMITER ;
 DELIMITER $$
 CREATE TRIGGER `trg_generar_factura_auto` AFTER INSERT ON `pago` FOR EACH ROW BEGIN
     DECLARE v_existe INT;
+    DECLARE v_next INT;
     SELECT COUNT(*) INTO v_existe FROM factura WHERE ID_Venta = NEW.ID_Venta;
     IF v_existe = 0 THEN
+        SELECT COALESCE(MAX(CAST(SUBSTRING(Numero_Factura, 5) AS UNSIGNED)), 0) + 1 INTO v_next FROM factura FOR UPDATE;
         INSERT INTO factura (Numero_Factura, ID_Venta)
-        VALUES (CONCAT('FAC-', LPAD(LAST_INSERT_ID(), 4, '0')), NEW.ID_Venta);
+        VALUES (CONCAT('FAC-', LPAD(v_next, 4, '0')), NEW.ID_Venta);
     END IF;
 END
 $$
@@ -650,7 +688,9 @@ INSERT INTO `password_resets` (`ID_Reset`, `ID_Usuario`, `token_hash`, `expira_e
 (3, 1, 'a71baa792396d2dce7fcbb063a915b11112c2fa334d830af32cdd6b4e31b3c50', '2026-09-14 10:24:15', '2026-09-14 10:09:36', '2026-09-14 10:09:15'),
 (4, 10, 'e55174dcf2fd8f4ef0ec3235d60d1649584d6c9deb9b647726315b77aeb95ba2', '2026-09-14 10:26:24', '2026-09-14 10:11:43', '2026-09-14 10:11:24'),
 (5, 12, '43981aeba1799c3cab0b491fe8f71827ef4be227c630426b862717d5ea026c48', '2026-09-14 10:30:59', '2026-09-14 10:16:18', '2026-09-14 10:15:59'),
-(6, 1, '71bd0d57a46439ab60d2ced7dd934edb415e0ce88a1f2b401bc12f492787cfe9', '2026-09-14 11:27:02', '2026-09-14 11:12:26', '2026-09-14 11:12:02');
+(6, 1, '71bd0d57a46439ab60d2ced7dd934edb415e0ce88a1f2b401bc12f492787cfe9', '2026-09-14 11:27:02', '2026-09-14 11:12:26', '2026-09-14 11:12:02'),
+(7, 1, '8f37ab630aaa54b93b7adcb8ebe9adfae7053165cdbc0a0c95baeb59bc9d4e57', '2026-09-14 14:02:01', '2026-09-14 13:47:37', '2026-09-14 13:47:01'),
+(8, 10, 'ea4d485c0d328ee73c24f27b12e25b02a5cfb1f0088bedfd8b5d9a2f29698dda', '2026-09-14 15:30:21', '2026-09-14 15:15:40', '2026-09-14 15:15:21');
 
 -- --------------------------------------------------------
 
@@ -664,7 +704,8 @@ CREATE TABLE `pedido` (
   `Direccion_Envio` varchar(255) NOT NULL,
   `Ciudad_Envio` int(11) NOT NULL,
   `Tipo_Envio` enum('Estándar','Express','Recogida en tienda') NOT NULL,
-  `Estado_Pedido` enum('Preparando','En camino','Entregado','Cancelado') DEFAULT 'Preparando',
+  `Estado_Pedido` enum('Pendiente','Pagado','Preparando','En camino','Entregado','Cancelado') NOT NULL DEFAULT 'Pendiente',
+  `Motivo_Cancelacion` text DEFAULT NULL,
   `Guia_Seguimiento` varchar(50) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -672,10 +713,11 @@ CREATE TABLE `pedido` (
 -- Volcado de datos para la tabla `pedido`
 --
 
-INSERT INTO `pedido` (`ID_Pedido`, `ID_Venta`, `Direccion_Envio`, `Ciudad_Envio`, `Tipo_Envio`, `Estado_Pedido`, `Guia_Seguimiento`) VALUES
-(1, 13, 'Calle 45 #12-30, Bogotá', 1, 'Estándar', 'Preparando', NULL),
-(2, 14, 'Carrera 80 #25-15, Bogotá', 1, 'Express', 'En camino', 'PRIORITARIO'),
-(3, 12, 'Avenida 68 #90-10, Bogotá', 1, 'Estándar', 'Entregado', NULL);
+INSERT INTO `pedido` (`ID_Pedido`, `ID_Venta`, `Direccion_Envio`, `Ciudad_Envio`, `Tipo_Envio`, `Estado_Pedido`, `Motivo_Cancelacion`, `Guia_Seguimiento`) VALUES
+(1, 13, 'Calle 45 #12-30, Bogotá', 1, 'Estándar', 'Cancelado', NULL, NULL),
+(2, 14, 'Carrera 80 #25-15, Bogotá', 1, 'Express', 'Entregado', NULL, 'PRIORITARIO'),
+(3, 12, 'Avenida 68 #90-10, Bogotá', 1, 'Estándar', 'Entregado', NULL, NULL),
+(11, 27, 'Dirección por confirmar (Cliente #14)', 1, 'Estándar', 'Pagado', NULL, NULL);
 
 --
 -- Disparadores `pedido`
@@ -697,8 +739,23 @@ END
 $$
 DELIMITER ;
 DELIMITER $$
+CREATE TRIGGER `trg_bloquear_pagado_sin_stock` BEFORE UPDATE ON `pedido` FOR EACH ROW BEGIN
+    IF NEW.Estado_Pedido IN ('Pagado', 'Preparando') AND OLD.Estado_Pedido != NEW.Estado_Pedido THEN
+        IF EXISTS (
+            SELECT 1 FROM detalle_venta dv
+            JOIN producto p ON p.ID_Producto = dv.ID_Producto
+            WHERE dv.ID_Venta = NEW.ID_Venta AND dv.Cantidad > p.Stock_Actual
+        ) THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Stock insuficiente para confirmar el pedido (RF 2.10).';
+        END IF;
+    END IF;
+END
+$$
+DELIMITER ;
+DELIMITER $$
 CREATE TRIGGER `trg_devolver_stock_cancelacion` AFTER UPDATE ON `pedido` FOR EACH ROW BEGIN
-    IF NEW.Estado_Pedido = 'Cancelado' AND OLD.Estado_Pedido != 'Cancelado' THEN
+    IF NEW.Estado_Pedido = 'Cancelado' AND OLD.Estado_Pedido != 'Cancelado'
+       AND OLD.Estado_Pedido IN ('Pagado', 'Preparando', 'En camino') THEN
         UPDATE producto p
         JOIN detalle_venta dv ON p.ID_Producto = dv.ID_Producto
         SET p.Stock_Actual = p.Stock_Actual + dv.Cantidad
@@ -743,8 +800,16 @@ $$
 DELIMITER ;
 DELIMITER $$
 CREATE TRIGGER `trg_secuencia_estados_pedido` BEFORE UPDATE ON `pedido` FOR EACH ROW BEGIN
-    IF OLD.Estado_Pedido = 'Preparando' AND NEW.Estado_Pedido NOT IN ('En camino', 'Cancelado') THEN
+    IF OLD.Estado_Pedido = 'Pendiente' AND NEW.Estado_Pedido NOT IN ('Pagado', 'Cancelado') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Desde Pendiente solo a Pagado o Cancelado.';
+    ELSEIF OLD.Estado_Pedido = 'Pagado' AND NEW.Estado_Pedido NOT IN ('Preparando', 'Cancelado') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Desde Pagado solo a Preparando o Cancelado.';
+    ELSEIF OLD.Estado_Pedido = 'Preparando' AND NEW.Estado_Pedido NOT IN ('En camino', 'Cancelado') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Estado no permitido desde Preparando.';
+    ELSEIF OLD.Estado_Pedido = 'En camino' AND NEW.Estado_Pedido NOT IN ('Entregado', 'Cancelado') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Desde En camino solo a Entregado o Cancelado.';
+    ELSEIF OLD.Estado_Pedido = 'Cancelado' AND NEW.Estado_Pedido != 'Cancelado' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Pedido cancelado es terminal.';
     END IF;
 END
 $$
@@ -774,6 +839,13 @@ CREATE TABLE `pqr` (
   `ID_Empleado` int(11) DEFAULT NULL,
   `Respuesta` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Volcado de datos para la tabla `pqr`
+--
+
+INSERT INTO `pqr` (`ID_Pqr`, `Fecha_Registro`, `Descripcion`, `Tipo`, `Estado`, `ID_Cliente`, `ID_Empleado`, `Respuesta`) VALUES
+(2, '2026-09-14 15:06:50', 'No muy mala tela', 'Queja', 'Cerrado', 1, NULL, 'TE MANDAMOS UNA CON MEJOR CALIDAD');
 
 --
 -- Disparadores `pqr`
@@ -818,9 +890,9 @@ CREATE TABLE `producto` (
 --
 
 INSERT INTO `producto` (`ID_Producto`, `Nombre_Producto`, `Precio_Actual`, `Stock_Actual`, `ID_Categoria`, `ID_Proveedor`, `Imagen_URL`, `QR_Code_URL`, `deleted_at`, `Stock_Minimo`) VALUES
-(1, 'Camiseta ACIDO Clásica', 59900.00, 32, 1, 1, NULL, NULL, NULL, 10),
+(1, 'Camiseta ACIDO Clásica', 59900.00, 38, 1, 1, NULL, NULL, NULL, 10),
 (2, 'Pantalón ACIDO Urbano', 129900.00, 17, 2, 1, NULL, NULL, NULL, 10),
-(3, 'Chaqueta ACIDO Oversize', 199900.00, 6, 3, 1, NULL, NULL, NULL, 10),
+(3, 'Chaqueta ACIDO Oversize', 199900.00, 5, 3, 1, NULL, NULL, NULL, 10),
 (4, 'Gorra ACIDO Bordada', 39900.00, 0, 4, 1, NULL, NULL, NULL, 10);
 
 --
@@ -939,6 +1011,13 @@ CREATE TABLE `resena_valoracion` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
+-- Volcado de datos para la tabla `resena_valoracion`
+--
+
+INSERT INTO `resena_valoracion` (`ID_Resena`, `ID_Cliente`, `ID_Producto`, `Calificacion`, `Comentario`, `Fecha_Publicacion`, `Estado_Moderacion`) VALUES
+(2, 1, 1, 1, 'MALA', '2026-09-14 15:06:58', 'Pendiente');
+
+--
 -- Disparadores `resena_valoracion`
 --
 DELIMITER $$
@@ -995,9 +1074,11 @@ CREATE TABLE `usuario` (
 --
 
 INSERT INTO `usuario` (`ID_Usuario`, `Email`, `Seudonimo`, `Foto`, `Password_Hash`, `Rol`, `ID_Empleado`, `ID_Cliente`, `deleted_at`) VALUES
-(1, 'admin@acido.local', 'admin', '/ACIDO/BACKPHP_TEST/public/img/perfiles/perfil_1_1789395934.jpg', '$2y$12$ye8mvpNploa.BF8qllu83e9uz4jYWKbmvtkHKwssCMacpipV87ywK', 'Administrador', NULL, 1, NULL),
-(10, 'jhona@gmail.com', 'jhona', NULL, '$2y$12$iNqS8./OwO7W3MSsmdgkjuXp/IV5WtLOYbIWEtaYzpLFH8IxaJvhy', 'Cliente', NULL, 11, NULL),
-(12, 'test.jhona.acido@gmail.com', 'jhonny', NULL, '$2y$12$oEC9UCfqZDH71k.amMYQveEa8Cs7xGLi.pqNkGJjowu0bBKk8.6dS', 'Cliente', NULL, 13, NULL);
+(1, 'admin@acido.local', 'admin', NULL, '$2y$12$kbe/HRDKQBI37Qg0c9xjTOZRGckoh35LMEk1x9zPgOKFjxBH7X4DO', 'Administrador', NULL, 1, NULL),
+(10, 'jhona@gmail.com', 'jhona', NULL, '$2y$12$J8JpvpAG3EmrIzZ9xP08guiiyT.Jl/rJqdYbfkyExvWktHkheY1Iq', 'Empleado', 2, 11, NULL),
+(12, 'test.jhona.acido@gmail.com', 'jhonny', NULL, '$2y$12$oEC9UCfqZDH71k.amMYQveEa8Cs7xGLi.pqNkGJjowu0bBKk8.6dS', 'Cliente', NULL, 13, NULL),
+(13, 'jhonatan@gmail.com', 'jhonatan', NULL, '$2y$12$f786Wp/bZrZ2QYDr9IcsAOaogS1xHcAOwctcho5F6GidWtZmCClUu', 'Cliente', NULL, 14, NULL),
+(14, 'testbuy@acido.local', NULL, NULL, '$2y$12$XaIHlTy3OyYZnwajsqJA/.fyDxG6m4G9k9V3fwN/pjbRCKPqdYA0u', 'Cliente', NULL, 15, '2026-09-14 16:10:02');
 
 --
 -- Disparadores `usuario`
@@ -1070,7 +1151,8 @@ INSERT INTO `venta` (`ID_Venta`, `Fecha_Venta`, `ID_Cliente`, `ID_Empleado`) VAL
 (21, '2026-09-14 09:49:47', 1, NULL),
 (22, '2026-09-14 09:50:22', 1, NULL),
 (23, '2026-09-14 10:27:53', 1, NULL),
-(24, '2026-09-14 10:28:40', 1, NULL);
+(24, '2026-09-14 10:28:40', 1, NULL),
+(27, '2026-09-14 15:37:50', 14, NULL);
 
 --
 -- Disparadores `venta`
@@ -1156,7 +1238,7 @@ CREATE TABLE `v_cancelaciones_mes` (
 ,`Direccion_Envio` varchar(255)
 ,`Ciudad_Envio` int(11)
 ,`Tipo_Envio` enum('Estándar','Express','Recogida en tienda')
-,`Estado_Pedido` enum('Preparando','En camino','Entregado','Cancelado')
+,`Estado_Pedido` enum('Pendiente','Pagado','Preparando','En camino','Entregado','Cancelado')
 ,`Guia_Seguimiento` varchar(50)
 );
 
@@ -1279,7 +1361,8 @@ CREATE TABLE `v_envios_pendientes` (
 ,`Direccion_Envio` varchar(255)
 ,`Ciudad_Envio` int(11)
 ,`Tipo_Envio` enum('Estándar','Express','Recogida en tienda')
-,`Estado_Pedido` enum('Preparando','En camino','Entregado','Cancelado')
+,`Estado_Pedido` enum('Pendiente','Pagado','Preparando','En camino','Entregado','Cancelado')
+,`Motivo_Cancelacion` text
 ,`Guia_Seguimiento` varchar(50)
 );
 
@@ -1450,7 +1533,7 @@ CREATE TABLE `v_mis_pedidos_activos` (
 ,`Direccion_Envio` varchar(255)
 ,`Ciudad_Envio` int(11)
 ,`Tipo_Envio` enum('Estándar','Express','Recogida en tienda')
-,`Estado_Pedido` enum('Preparando','En camino','Entregado','Cancelado')
+,`Estado_Pedido` enum('Pendiente','Pagado','Preparando','En camino','Entregado','Cancelado')
 ,`Guia_Seguimiento` varchar(50)
 );
 
@@ -1576,7 +1659,7 @@ CREATE TABLE `v_pedidos_entregados` (
 ,`Direccion_Envio` varchar(255)
 ,`Ciudad_Envio` int(11)
 ,`Tipo_Envio` enum('Estándar','Express','Recogida en tienda')
-,`Estado_Pedido` enum('Preparando','En camino','Entregado','Cancelado')
+,`Estado_Pedido` enum('Pendiente','Pagado','Preparando','En camino','Entregado','Cancelado')
 ,`Guia_Seguimiento` varchar(50)
 );
 
@@ -1889,7 +1972,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 --
 DROP TABLE IF EXISTS `v_envios_pendientes`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_envios_pendientes`  AS SELECT `pedido`.`ID_Pedido` AS `ID_Pedido`, `pedido`.`ID_Venta` AS `ID_Venta`, `pedido`.`Direccion_Envio` AS `Direccion_Envio`, `pedido`.`Ciudad_Envio` AS `Ciudad_Envio`, `pedido`.`Tipo_Envio` AS `Tipo_Envio`, `pedido`.`Estado_Pedido` AS `Estado_Pedido`, `pedido`.`Guia_Seguimiento` AS `Guia_Seguimiento` FROM `pedido` WHERE `pedido`.`Estado_Pedido` in ('Preparando','En camino') ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_envios_pendientes`  AS SELECT `pedido`.`ID_Pedido` AS `ID_Pedido`, `pedido`.`ID_Venta` AS `ID_Venta`, `pedido`.`Direccion_Envio` AS `Direccion_Envio`, `pedido`.`Ciudad_Envio` AS `Ciudad_Envio`, `pedido`.`Tipo_Envio` AS `Tipo_Envio`, `pedido`.`Estado_Pedido` AS `Estado_Pedido`, `pedido`.`Motivo_Cancelacion` AS `Motivo_Cancelacion`, `pedido`.`Guia_Seguimiento` AS `Guia_Seguimiento` FROM `pedido` WHERE `pedido`.`Estado_Pedido` in ('Pendiente','Pagado','Preparando','En camino') ;
 
 -- --------------------------------------------------------
 
@@ -2432,7 +2515,7 @@ ALTER TABLE `venta`
 -- AUTO_INCREMENT de la tabla `alertas_sistema`
 --
 ALTER TABLE `alertas_sistema`
-  MODIFY `ID_Alerta` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `ID_Alerta` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT de la tabla `auditoria_precios`
@@ -2462,13 +2545,13 @@ ALTER TABLE `ciudad`
 -- AUTO_INCREMENT de la tabla `cliente`
 --
 ALTER TABLE `cliente`
-  MODIFY `ID_Cliente` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `ID_Cliente` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT de la tabla `control_accesos`
 --
 ALTER TABLE `control_accesos`
-  MODIFY `ID_Control` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
+  MODIFY `ID_Control` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
 
 --
 -- AUTO_INCREMENT de la tabla `departamento`
@@ -2480,19 +2563,19 @@ ALTER TABLE `departamento`
 -- AUTO_INCREMENT de la tabla `detalle_venta`
 --
 ALTER TABLE `detalle_venta`
-  MODIFY `ID_Detalle` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
+  MODIFY `ID_Detalle` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
 
 --
 -- AUTO_INCREMENT de la tabla `empleado`
 --
 ALTER TABLE `empleado`
-  MODIFY `ID_Empleado` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `ID_Empleado` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT de la tabla `factura`
 --
 ALTER TABLE `factura`
-  MODIFY `ID_Factura` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `ID_Factura` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT de la tabla `libreta_direcciones`
@@ -2510,7 +2593,7 @@ ALTER TABLE `lista_deseos`
 -- AUTO_INCREMENT de la tabla `lista_espera_stock`
 --
 ALTER TABLE `lista_espera_stock`
-  MODIFY `ID_Espera` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `ID_Espera` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT de la tabla `metodo_pago`
@@ -2522,37 +2605,37 @@ ALTER TABLE `metodo_pago`
 -- AUTO_INCREMENT de la tabla `movimiento_inventario`
 --
 ALTER TABLE `movimiento_inventario`
-  MODIFY `ID_Movimiento` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `ID_Movimiento` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT de la tabla `notificacion_log`
 --
 ALTER TABLE `notificacion_log`
-  MODIFY `ID_Log` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `ID_Log` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT de la tabla `pago`
 --
 ALTER TABLE `pago`
-  MODIFY `ID_Pago` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `ID_Pago` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT de la tabla `password_resets`
 --
 ALTER TABLE `password_resets`
-  MODIFY `ID_Reset` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `ID_Reset` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT de la tabla `pedido`
 --
 ALTER TABLE `pedido`
-  MODIFY `ID_Pedido` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `ID_Pedido` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT de la tabla `pqr`
 --
 ALTER TABLE `pqr`
-  MODIFY `ID_Pqr` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `ID_Pqr` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT de la tabla `producto`
@@ -2570,19 +2653,19 @@ ALTER TABLE `proveedor`
 -- AUTO_INCREMENT de la tabla `resena_valoracion`
 --
 ALTER TABLE `resena_valoracion`
-  MODIFY `ID_Resena` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `ID_Resena` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT de la tabla `usuario`
 --
 ALTER TABLE `usuario`
-  MODIFY `ID_Usuario` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `ID_Usuario` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT de la tabla `venta`
 --
 ALTER TABLE `venta`
-  MODIFY `ID_Venta` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `ID_Venta` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- Restricciones para tablas volcadas

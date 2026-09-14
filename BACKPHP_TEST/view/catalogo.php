@@ -54,6 +54,10 @@ if (!isset($items)) { $items = []; }
                 <i class="fa-solid fa-receipt"></i>
                 <span class="sidebar-text"><?php echo in_array($__rol,['Administrador','Empleado'],true)?'Ventas':'Mis compras'; ?></span>
             </a>
+            <a href="index.php?action=pqr" class="nav-item">
+                <i class="fa-solid fa-headset"></i>
+                <span class="sidebar-text">PQR y Ayuda</span>
+            </a>
             <?php if (in_array($__rol, ['Administrador','Empleado'], true)): ?>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item">
@@ -75,14 +79,7 @@ if (!isset($items)) { $items = []; }
                 </div>
                 <div class="topbar-user">
                     <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-bell"></i>
-                        <span class="badge red">3+</span>
-                    </div>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span class="badge yellow">7</span>
-                    </div>
+                    <?php require_once __DIR__ . "/partials/stock_bell.php"; ?>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
                         <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
@@ -133,8 +130,13 @@ if (!isset($items)) { $items = []; }
                             <div style="font-weight:800;font-size:15px;margin:4px 0;min-height:44px;"><?php echo htmlspecialchars($it['Nombre_Producto']); ?></div>
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
                                 <span style="font-weight:800;color:#004BA0;">$<?php echo number_format($it['Precio_Actual'], 0, ',', '.'); ?></span>
+                                <?php if ((int)$it['Stock_Actual'] > 0): ?>
                                 <span style="font-size:11px;background:#c6f6d5;color:#22543d;padding:4px 8px;border-radius:12px;font-weight:700;">Stock <?php echo (int)$it['Stock_Actual']; ?></span>
+                                <?php else: ?>
+                                <span style="font-size:11px;background:#fed7d7;color:#9b2c2c;padding:4px 8px;border-radius:12px;font-weight:700;">Agotado</span>
+                                <?php endif; ?>
                             </div>
+                            <?php if ((int)$it['Stock_Actual'] > 0): ?>
                             <form action="index.php?action=catalogo" method="POST" class="ajax-cart-form" data-nombre="<?php echo htmlspecialchars($it['Nombre_Producto'], ENT_QUOTES); ?>" style="display:flex;gap:8px;margin-top:auto;padding-top:10px;align-items:center;">
                                 <input type="hidden" name="cart_action" value="add">
                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
@@ -149,6 +151,14 @@ if (!isset($items)) { $items = []; }
                                 <input type="hidden" name="qty" value="1">
                                 <button type="submit" class="btn-buy-now" style="flex:1;"><i class="fa-solid fa-bolt"></i> Comprar ahora</button>
                             </form>
+                            <?php else: ?>
+                            <form action="index.php?action=catalogo" method="POST" class="ajax-espera-form" data-nombre="<?php echo htmlspecialchars($it['Nombre_Producto'], ENT_QUOTES); ?>" style="margin-top:auto;padding-top:10px;">
+                                <input type="hidden" name="espera_action" value="anotar">
+                                <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
+                                <button type="submit" class="btn-crud-cancel" style="width:100%;background:#4e73df;"><i class="fa-solid fa-bell"></i> Avísame cuando vuelva</button>
+                            </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -166,7 +176,23 @@ if (!isset($items)) { $items = []; }
                 d.style.display = d.textContent.toLowerCase().includes(q) ? '' : 'none';
             });
         });
-        // Agregar al carrito sin recargar: actualiza badges + toast
+        // Lista de espera (RF 5.8): avísame sin recargar
+        document.querySelectorAll('.ajax-espera-form').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = f.querySelector('button[type=submit]');
+                if (btn) btn.disabled = true;
+                try {
+                    const res = await fetch(f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const d = await res.json();
+                    window.acidoToast(d.message || (d.success ? 'Anotado' : 'No se pudo'), d.success ? 'ok' : 'error');
+                    if (d.success && btn) { btn.innerHTML = '<i class="fa-solid fa-check"></i> Anotado'; }
+                } catch (err) {
+                    window.acidoToast('Sin conexión, intenta de nuevo', 'error');
+                }
+                if (btn) btn.disabled = false;
+            });
+        });
         document.querySelectorAll('.ajax-cart-form').forEach(f => {
             f.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -179,7 +205,7 @@ if (!isset($items)) { $items = []; }
                         window.updateCartBadge(d.cartCount);
                         window.acidoToast('Agregado: ' + (f.dataset.nombre || 'producto'), 'ok');
                     } else {
-                        window.acidoToast('No se pudo agregar', 'error');
+                        window.acidoToast('Sin stock disponible', 'error');
                     }
                 } catch (err) {
                     window.acidoToast('Sin conexión, intenta de nuevo', 'error');
@@ -188,5 +214,6 @@ if (!isset($items)) { $items = []; }
             });
         });
     </script>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

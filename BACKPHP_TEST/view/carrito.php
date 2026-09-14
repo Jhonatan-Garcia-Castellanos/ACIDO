@@ -43,6 +43,7 @@ if (!isset($shipping)) { $shipping = null; }
             <a href="index.php?action=catalogo" class="nav-item"><i class="fa-solid fa-store"></i><span class="sidebar-text">Catálogo</span></a>
             <a href="index.php?action=carrito" class="nav-item active"><i class="fa-solid fa-cart-shopping"></i><span class="sidebar-text">Carrito<?php $n=array_sum($_SESSION['cart']??[]); if($n>0) echo " ($n)"; ?></span></a>
             <a href="index.php?action=ventas" class="nav-item"><i class="fa-solid fa-receipt"></i><span class="sidebar-text"><?php echo in_array($__rol,['Administrador','Empleado'],true)?'Ventas':'Mis compras'; ?></span></a>
+            <a href="index.php?action=pqr" class="nav-item"><i class="fa-solid fa-headset"></i><span class="sidebar-text">PQR y Ayuda</span></a>
             <?php if (in_array($__rol, ['Administrador','Empleado'], true)): ?>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item"><i class="fa-solid fa-boxes-stacked"></i><span class="sidebar-text">Inventario</span></a>
@@ -54,14 +55,7 @@ if (!isset($shipping)) { $shipping = null; }
                 <div class="search-bar"><input type="text" placeholder="Carrito..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
                 <div class="topbar-user">
                     <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-bell"></i>
-                        <span class="badge red">3+</span>
-                    </div>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span class="badge yellow">7</span>
-                    </div>
+                    <?php require_once __DIR__ . "/partials/stock_bell.php"; ?>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
                         <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
@@ -96,6 +90,7 @@ if (!isset($shipping)) { $shipping = null; }
                 <?php if (isset($_GET['ok'])): ?>
                     <div style="background:#c6f6d5;color:#22543d;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;">
                         ¡Compra exitosa! Venta #<?php echo htmlspecialchars($_GET['ok']); ?><?php if(isset($_GET['fac'])) echo " · Factura ".htmlspecialchars($_GET['fac']); ?>. <a href="index.php?action=ventas">Ver en ventas</a>
+                        <br><small><i class="fa-solid fa-truck-fast"></i> Entrega estimada: <?php echo htmlspecialchars(function_exists('fechaEstimada') ? fechaEstimada(date('Y-m-d'), 'Estándar') : date('Y-m-d', strtotime('+5 days'))); ?> (envío Estándar). Revisa tu correo: te enviamos la confirmación con la factura.</small>
                     </div>
                 <?php endif; ?>
 
@@ -196,12 +191,12 @@ if (!isset($shipping)) { $shipping = null; }
                                     <input type="text" name="apellidos" class="crud-input" placeholder="Ej. Pérez López" required maxlength="100" value="<?php echo htmlspecialchars($shipping['apellidos'] ?? ''); ?>">
                                 </div>
                                 <div class="envio-campo">
-                                    <label>DNI / Cédula</label>
-                                    <input type="text" name="dni" class="crud-input" placeholder="Ej. 1012345678" required maxlength="20" inputmode="numeric" value="<?php echo htmlspecialchars($shipping['dni'] ?? ''); ?>">
+                                    <label>DNI / Cédula (6-12 dígitos)</label>
+                                    <input type="text" name="dni" class="crud-input" placeholder="Ej. 1012345678" required maxlength="12" inputmode="numeric" pattern="[0-9]{6,12}" title="6 a 12 dígitos numéricos" value="<?php echo htmlspecialchars($shipping['dni'] ?? ''); ?>">
                                 </div>
                                 <div class="envio-campo">
-                                    <label>Teléfono</label>
-                                    <input type="text" name="telefono" class="crud-input" placeholder="Ej. 3001234567" required maxlength="15" inputmode="tel" value="<?php echo htmlspecialchars($shipping['telefono'] ?? ''); ?>">
+                                    <label>Teléfono (7 o 10 dígitos)</label>
+                                    <input type="text" name="telefono" class="crud-input" placeholder="Ej. 3001234567" required maxlength="10" inputmode="tel" pattern="[0-9]{7}|[0-9]{10}" title="7 o 10 dígitos numéricos" value="<?php echo htmlspecialchars($shipping['telefono'] ?? ''); ?>">
                                 </div>
                                 <div class="envio-campo ancho-completo">
                                     <label>Dirección de envío</label>
@@ -239,7 +234,7 @@ if (!isset($shipping)) { $shipping = null; }
                     <div class="crud-form-body">
                         <div style="font-size:20px;font-weight:800;margin-bottom:4px;">Total: $<?php echo number_format($cartData['total'],0,',','.'); ?></div>
                         <small style="color:#a0aec0;display:block;margin-bottom:16px;">Selecciona tu medio de pago y confirma. El número solo se guarda enmascarado.</small>
-                        <form action="index.php?action=carrito" method="POST" id="pagoForm" autocomplete="off">
+                        <form action="index.php?action=carrito" method="POST" id="pagoForm" autocomplete="off" enctype="multipart/form-data" onsubmit="var b=this.querySelector('button[type=submit]');if(b){b.disabled=true;b.innerHTML='<i class=&quot;fa-solid fa-spinner fa-spin&quot;></i> Procesando...';}">
                             <input type="hidden" name="cart_action" value="checkout">
                             <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                             <input type="hidden" name="entidad" id="entidadInput" value="">
@@ -285,7 +280,13 @@ if (!isset($shipping)) { $shipping = null; }
                                     <label>Número de cuenta o celular</label>
                                     <input type="text" name="cuenta" class="crud-input" inputmode="numeric" maxlength="20" placeholder="Ej. 3001234567">
                                 </div>
-                                <small style="color:#a0aec0;">La confirmación se envía a tu aplicación bancaria.</small>
+                                <small style="color:#a0aec0;">Nequi/Daviplata: exactamente 10 dígitos. La confirmación se envía a tu aplicación bancaria.</small>
+                            </div>
+                            <div id="campoComprobante" class="pago-campos" style="display:none;">
+                                <div class="pago-campo ancho-completo">
+                                    <label>Comprobante de transferencia (JPG o PDF, máx. 5MB, obligatorio)</label>
+                                    <input type="file" name="comprobante" id="inputComprobante" class="crud-input" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                                </div>
                             </div>
                             <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                                 <a href="index.php?action=carrito&step=2" style="color:#4a5568;font-weight:700;font-size:13px;text-decoration:none;padding:8px 12px;"><i class="fa-solid fa-arrow-left"></i> Volver</a>
@@ -355,16 +356,22 @@ if (!isset($shipping)) { $shipping = null; }
             const radios = document.querySelectorAll('.medio-radio');
             const cajTarjeta = document.getElementById('campoTarjeta');
             const cajCuenta = document.getElementById('campoCuenta');
+            const cajComp = document.getElementById('campoComprobante');
             const entidadInput = document.getElementById('entidadInput');
             const numTarjeta = document.getElementById('numeroTarjeta');
             function actualizar() {
                 const sel = document.querySelector('.medio-radio:checked');
                 if (!sel) return;
                 entidadInput.value = sel.dataset.entidad || '';
+                const esTransfer = (sel.dataset.entidad || '').toLowerCase().indexOf('transfer') !== -1;
                 const req = (box, on) => box.querySelectorAll('input').forEach(i => {
                     if (on) i.setAttribute('required', 'required');
                     else i.removeAttribute('required');
                 });
+                if (cajComp) {
+                    cajComp.style.display = esTransfer ? 'grid' : 'none';
+                    req(cajComp, esTransfer);
+                }
                 if (sel.dataset.tipo === 'tarjeta') {
                     cajTarjeta.style.display = 'grid';
                     cajCuenta.style.display = 'none';
@@ -390,5 +397,6 @@ if (!isset($shipping)) { $shipping = null; }
             actualizar();
         })();
     </script>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

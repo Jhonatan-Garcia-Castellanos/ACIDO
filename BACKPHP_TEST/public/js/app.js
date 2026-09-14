@@ -154,4 +154,28 @@
         }
         if (dropdown) dropdown.classList.toggle('open');
     };
+
+    // 9. Sesión vencida por inactividad (1.3): cualquier fetch JSON con
+    //    {expired:true} redirige al login con el mensaje del servidor.
+    (function () {
+        if (window.__acidoFetchPatched) return;
+        window.__acidoFetchPatched = true;
+        var origFetch = window.fetch.bind(window);
+        window.fetch = function (url, opts) {
+            return origFetch(url, opts).then(function (res) {
+                var ct = '';
+                try { ct = res.headers.get('Content-Type') || ''; } catch (e) {}
+                if (ct.indexOf('application/json') === -1) return res;
+                return res.clone().json().then(function (d) {
+                    if (d && (d.expired === true || d.session_expired === true)) {
+                        var msg = d.message || 'Sesión cerrada por inactividad (15 minutos). Inicia sesión de nuevo.';
+                        window.location.href = 'index.php?action=login&error=' + encodeURIComponent(msg);
+                        // Devuelve promesa que no resuelve para frenar el flujo actual
+                        return new Promise(function () {});
+                    }
+                    return res;
+                }).catch(function () { return res; });
+            });
+        };
+    })();
 })();

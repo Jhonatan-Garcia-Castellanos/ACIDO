@@ -203,6 +203,10 @@ html, body {
     justify-content: space-between;
     padding: 0 25px;
     flex-shrink: 0 !important;
+    /* La campana y el menú de usuario deben pintar por encima de las tarjetas
+       (las .anim-card y los canvas crean sus propios stacking contexts) */
+    position: relative;
+    z-index: 600;
 }
 
 .search-bar { display: flex; }
@@ -323,6 +327,9 @@ html, body {
 }
 .topbar .icon-badge { transition: transform .15s ease; }
 .topbar .icon-badge:hover { transform: scale(1.2); }
+/* La campana NO se escala: el transform crearía un stacking context que
+   encierra al dropdown y lo deja detrás de las tarjetas del dashboard */
+.topbar #stockBell:hover { transform: none; }
 
 /* Toasts globales (app.js: acidoToast) */
 .acido-toasts {
@@ -354,7 +361,85 @@ html, body {
 tr.detail-row td { background: #f8f9fc; font-size: 12px; }
 tr.removing { opacity: 0; transition: opacity .3s ease; }
 
-@media (max-width: 768px) {
-    .dashboard-container { flex-direction: column; }
-    .sidebar { width: 100% !important; min-height: auto; }
+/* ===================================================
+   RESPONSIVE (lista 5.4): el layout de escritorio es de viewport fijo
+   (100vh + overflow hidden). En móvil se libera el scroll de página,
+   el sidebar pasa a tira horizontal y las grillas colapsan a 1 columna.
+=================================================== */
+@media (max-width: 900px) {
+    html, body {
+        height: auto !important;
+        max-height: none !important;
+        overflow: auto !important;
+    }
+    .dashboard-container {
+        flex-direction: column !important;
+        width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 100vh;
+        overflow: visible !important;
+    }
+    /* Sidebar -> tira superior horizontal con scroll lateral */
+    .sidebar {
+        width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 4px;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        padding: 8px 10px !important;
+        flex-shrink: 0;
+    }
+    .sidebar-brand { height: auto; padding: 0 4px; flex-shrink: 0; }
+    .sidebar-divider, .sidebar-heading, .sidebar-promo { display: none !important; }
+    .nav-item { flex-shrink: 0; white-space: nowrap; }
+    .sidebar.collapsed { width: 100% !important; }
+    .sidebar.collapsed .nav-item { padding: 10px !important; }
+    /* El contenido fluye con la página (ya no recuadro fijo) */
+    .main-content {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    .content-padding,
+    .content-padding-crud {
+        height: auto !important;
+        overflow: visible !important;
+        padding: 15px !important;
+    }
+    /* Topbar que se envuelve en 2 filas */
+    .topbar {
+        height: auto !important;
+        min-height: 70px;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 12px !important;
+    }
+    .search-bar { order: 5; flex: 1 1 100%; }
+    .search-bar input { flex: 1; width: 100%; }
+    .topbar-user { flex-wrap: wrap; gap: 10px; margin-left: auto; }
+    .page-header { flex-wrap: wrap; gap: 10px; }
+    .page-header h2 { font-size: 18px; }
+    /* Grillas inline de las vistas (crud/inventario/ventas) a 1 columna */
+    .content-padding [style*="grid-template-columns"],
+    .content-padding-crud [style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+    .chart-body { height: 260px; }
+    /* El dropdown de la campana lo posiciona notif-stock.js (fijo al viewport);
+       aquí solo se evita que desborde en pantallas medianas sin JS */
+    #stockDropdown {
+        max-width: calc(100vw - 24px);
+    }
+}
+
+@media (max-width: 560px) {
+    #liveClock { display: none !important; }
+    .user-badge strong { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+    .search-bar input { font-size: 12px; }
+    .crud-table { font-size: 12px; }
+    .btn-report, .btn-crud-save, .btn-crud-cancel { font-size: 11px; padding: 8px 10px; }
 }

@@ -63,7 +63,7 @@ class Venta
 
     /**
      * Checkout: crea venta + detalles + pago (factura y descuento stock via triggers).
-     * $pagoDetalle = ['entidad' => 'Visa/Bancolombia/Nequi', 'referencia' => numero enmascarado]
+     * $pagoDetalle = ['entidad' => 'Visa/Bancolombia/Nequi', 'referencia' => numero enmascarado, 'comprobante' => ruta web o null]
      * Retorna ['ID_Venta'=>, 'total'=>, 'factura'=>] o ['error'=>msg].
      */
     public function checkout($idUsuario, $cart, $idMetodo, $pagoDetalle = [])
@@ -72,6 +72,7 @@ class Venta
         if (!ctype_digit((string)$idMetodo)) return ['error' => 'Método de pago inválido'];
         $entidad = trim($pagoDetalle['entidad'] ?? '');
         $referencia = trim($pagoDetalle['referencia'] ?? '');
+        $comprobante = trim((string)($pagoDetalle['comprobante'] ?? ''));
         if ($entidad === '' || $referencia === '') return ['error' => 'Completa la información del pago (banco y número).'];
         try {
             $this->db->beginTransaction();
@@ -113,8 +114,15 @@ class Venta
             $idPedido = (int)$this->db->lastInsertId();
             $upP = $this->db->prepare("UPDATE pedido SET Estado_Pedido = 'Pagado' WHERE ID_Pedido = :p");
             $upP->execute([':p' => $idPedido]);
-            $pg = $this->db->prepare("INSERT INTO pago (ID_Venta, ID_Metodo, Monto_Pagado, Entidad_Bancaria, Numero_Referencia) VALUES (:v,:m,:t,:e,:r)");
-            $pg->execute([':v' => $idVenta, ':m' => $idMetodo, ':t' => $total, ':e' => $entidad, ':r' => $referencia]);
+            try {
+                $pg = $this->db->prepare("INSERT INTO pago (ID_Venta, ID_Metodo, Monto_Pagado, Entidad_Bancaria, Numero_Referencia, Comprobante_URL) VALUES (:v,:m,:t,:e,:r,:cu)");
+                $pg->execute([':v' => $idVenta, ':m' => $idMetodo, ':t' => $total, ':e' => $entidad, ':r' => $referencia, ':cu' => ($comprobante !== '' ? $comprobante : null)]);
+            } catch (PDOException $eCU) {
+                // Compat: BD sin migrate_pago_comprobante (sin columna Comprobante_URL)
+                if (stripos($eCU->getMessage(), 'Comprobante') === false && stripos($eCU->getMessage(), 'Unknown column') === false) throw $eCU;
+                $pg = $this->db->prepare("INSERT INTO pago (ID_Venta, ID_Metodo, Monto_Pagado, Entidad_Bancaria, Numero_Referencia) VALUES (:v,:m,:t,:e,:r)");
+                $pg->execute([':v' => $idVenta, ':m' => $idMetodo, ':t' => $total, ':e' => $entidad, ':r' => $referencia]);
+            }
             // Factura auto via trg_generar_factura_auto
             $f = $this->db->prepare("SELECT Numero_Factura FROM factura WHERE ID_Venta = :v LIMIT 1");
             $f->execute([':v' => $idVenta]);
@@ -123,6 +131,10 @@ class Venta
             // RF 2.3: aviso email best-effort si algo quedó bajo mínimo (no rompe la venta si falla).
             try {
                 $this->avisarStockBajo(array_keys($cart));
+            } catch (Exception $e) {}
+            // RF 5.4 + 5.7: confirmación al comprador con factura PDF adjunta (best-effort).
+            try {
+                $this->enviarConfirmacion($idVenta, $idUsuario, $total, $fac['Numero_Factura'] ?? null, $entidad);
             } catch (Exception $e) {}
             // RF 2.7: trazabilidad Salida en Kardex (best-effort).
             try {
@@ -154,6 +166,55 @@ class Venta
         }
     }
 
+    /** RF 5.4 + 5.7: confirmación de compra + factura PDF al correo del comprador.
+     *  Best-effort total: nunca lanza, nunca rompe la venta. */
+    private function enviarConfirmacion($idVenta, $idUsuario, $total, $numFactura, $metodo)
+    {
+        try {
+            require_once __DIR__ . "/../lib/Mailer.php";
+            require_once __DIR__ . "/../helpers/PdfSimple.php";
+            $mm = new Mailer();
+            if (!$mm->isConfigured()) return;
+            $st = $this->db->prepare("SELECT Email FROM usuario WHERE ID_Usuario = :u LIMIT 1");
+            $st->execute([':u' => $idUsuario]);
+            $email = trim((string)($st->fetchColumn() ?: ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+            $items = $this->detalleVenta($idVenta);
+            if (empty($items)) return;
+            // Mini-factura PDF de esta venta
+            $pdf = new PdfSimple();
+            $pdf->setFooter('ACIDO COLOMBIA - Factura ' . ($numFactura ?: ('V-' . $idVenta)));
+            $pdf->title('ACIDO COLOMBIA - Factura ' . ($numFactura ?: ('V-' . $idVenta)), 'Venta #' . $idVenta . ' | ' . date('Y-m-d H:i') . ' | ' . $email);
+            $widths = [60, 300, 80, 120, 209];
+            $pdf->row(['Cant.', 'Producto', 'P. Unit', 'Subtotal', 'Venta #' . $idVenta], $widths, 18, true);
+            foreach ($items as $it) {
+                $pdf->row([
+                    (string)($it['Cantidad'] ?? ''),
+                    substr((string)($it['Nombre_Producto'] ?? ''), 0, 50),
+                    '$' . number_format((float)($it['Precio_Venta_Historico'] ?? 0), 0, ',', '.'),
+                    '$' . number_format((float)($it['Cantidad'] ?? 0) * (float)($it['Precio_Venta_Historico'] ?? 0), 0, ',', '.'),
+                    '',
+                ], $widths, 16, false);
+            }
+            $pdfBytes = $pdf->render();
+            $mailItems = [];
+            foreach ($items as $it) {
+                $mailItems[] = ['nombre' => $it['Nombre_Producto'] ?? '', 'cant' => $it['Cantidad'] ?? 0, 'precio' => $it['Precio_Venta_Historico'] ?? 0];
+            }
+            $mm->enviarConfirmacionCompra($email, [
+                'nombre' => explode('@', $email)[0],
+                'id_venta' => $idVenta,
+                'fecha' => date('Y-m-d H:i'),
+                'total' => $total,
+                'metodo' => $metodo,
+                'factura' => $numFactura ?: ('V-' . $idVenta),
+                'items' => $mailItems,
+            ], $pdfBytes);
+        } catch (Exception $e) {
+            error_log("Venta::enviarConfirmacion: " . $e->getMessage());
+        }
+    }
+
     /** Dirección de envío: principal del cliente o fallback auditable. Retorna [direccion, idCiudad]. */
     private function direccionEnvio($idCliente)
     {
@@ -174,18 +235,40 @@ class Venta
     }
 
     /**
-     * Avanza/retrocede un pedido de forma controlada (RF 2.8/2.10).
-     * La secuencia y el stock los hacen cumplir los triggers; aquí solo se
-     * traduce el error SQL a mensaje claro. Retorna ['ok'=>bool,'message'=>].
+     * Avanza/retrocede un pedido de forma controlada (RF 2.8/2.10 + RF 4.3).
+     * Cancelar exige motivo obligatorio (5-255) y solo desde estados "no enviado"
+     * (Pendiente/Pagado/Preparando). La secuencia y el stock los hacen cumplir
+     * los triggers; aquí solo se traduce el error SQL a mensaje claro.
+     * Retorna ['ok'=>bool,'message'=>].
      */
-    public function cambiarEstadoPedido($idPedido, $nuevoEstado)
+    public function cambiarEstadoPedido($idPedido, $nuevoEstado, $motivo = '')
     {
         $permitidos = ['Pagado', 'Preparando', 'En camino', 'Entregado', 'Cancelado'];
         if (!ctype_digit((string)$idPedido)) return ['ok' => false, 'message' => 'Pedido inválido'];
         if (!in_array($nuevoEstado, $permitidos, true)) return ['ok' => false, 'message' => 'Estado inválido'];
+        $motivo = trim((string)$motivo);
         try {
-            $st = $this->db->prepare("UPDATE pedido SET Estado_Pedido = :e WHERE ID_Pedido = :p");
-            $st->execute([':e' => $nuevoEstado, ':p' => $idPedido]);
+            if ($nuevoEstado === 'Cancelado') {
+                if (strlen($motivo) < 5) {
+                    return ['ok' => false, 'message' => 'Para cancelar debes indicar el motivo (mínimo 5 caracteres).'];
+                }
+                if (strlen($motivo) > 255) {
+                    return ['ok' => false, 'message' => 'El motivo no puede superar 255 caracteres.'];
+                }
+                // Solo "no enviado": En camino/Entregado ya salieron a ruta
+                $chk = $this->db->prepare("SELECT Estado_Pedido FROM pedido WHERE ID_Pedido = :p LIMIT 1");
+                $chk->execute([':p' => $idPedido]);
+                $act = $chk->fetch(PDO::FETCH_ASSOC);
+                if (!$act) return ['ok' => false, 'message' => 'El pedido no existe'];
+                if (!in_array($act['Estado_Pedido'], ['Pendiente', 'Pagado', 'Preparando'], true)) {
+                    return ['ok' => false, 'message' => 'Solo se pueden cancelar pedidos no enviados (Pendiente/Pagado/Preparando).'];
+                }
+                $st = $this->db->prepare("UPDATE pedido SET Estado_Pedido = 'Cancelado', Motivo_Cancelacion = :m WHERE ID_Pedido = :p");
+                $st->execute([':m' => substr($motivo, 0, 255), ':p' => $idPedido]);
+            } else {
+                $st = $this->db->prepare("UPDATE pedido SET Estado_Pedido = :e WHERE ID_Pedido = :p");
+                $st->execute([':e' => $nuevoEstado, ':p' => $idPedido]);
+            }
             if ($st->rowCount() === 0) return ['ok' => false, 'message' => 'Pedido no existe o ya está en ese estado'];
             return ['ok' => true, 'message' => "Pedido #$idPedido → $nuevoEstado"];
         } catch (PDOException $e) {
@@ -197,12 +280,83 @@ class Venta
         }
     }
 
-    public function listarVentas($idCliente = null)
+    public function contarVentas($idCliente = null, $q = '', $desde = '', $hasta = '')
     {
         try {
-            $where = '';
+            $conds = [];
             $params = [];
-            if ($idCliente !== null) { $where = 'WHERE v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            if ($idCliente !== null) { $conds[] = 'v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $q = trim((string)$q);
+            if ($q !== '') {
+                $conds[] = "(v.ID_Venta LIKE :q1 OR u.Email LIKE :q2 OR EXISTS (SELECT 1 FROM factura f WHERE f.ID_Venta = v.ID_Venta AND f.Numero_Factura LIKE :q3))";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%';
+            }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$desde)) { $conds[] = 'DATE(v.Fecha_Venta) >= :desde'; $params[':desde'] = $desde; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$hasta)) { $conds[] = 'DATE(v.Fecha_Venta) <= :hasta'; $params[':hasta'] = $hasta; }
+            $where = $conds ? ('WHERE ' . implode(' AND ', $conds)) : '';
+            $stmt = $this->db->prepare("SELECT COUNT(*) AS c FROM venta v LEFT JOIN usuario u ON u.ID_Cliente = v.ID_Cliente $where");
+            $stmt->execute($params);
+            $r = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($r['c'] ?? 0);
+        } catch (PDOException $e) { return 0; }
+    }
+
+    public function listarVentas($idCliente = null, $page = 1, $per = 10, $q = '', $desde = '', $hasta = '', $order = 'ID_Venta', $dir = 'DESC')
+    {
+        try {
+            $page = max(1, (int)$page);
+            $per = (int)$per;
+            if (!in_array($per, [5, 10, 20, 50], true)) $per = 10;
+            $off = ($page - 1) * $per;
+            $map = ['ID_Venta' => 'v.ID_Venta', 'Fecha_Venta' => 'v.Fecha_Venta', 'Total' => 'Total'];
+            $orderSql = $map[$order] ?? 'v.ID_Venta';
+            $dir = (strtoupper($dir) === 'ASC') ? 'ASC' : 'DESC';
+            $conds = [];
+            $params = [];
+            if ($idCliente !== null) { $conds[] = 'v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $q = trim((string)$q);
+            if ($q !== '') {
+                $conds[] = "(v.ID_Venta LIKE :q1 OR u.Email LIKE :q2 OR EXISTS (SELECT 1 FROM factura f WHERE f.ID_Venta = v.ID_Venta AND f.Numero_Factura LIKE :q3))";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%';
+            }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$desde)) { $conds[] = 'DATE(v.Fecha_Venta) >= :desde'; $params[':desde'] = $desde; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$hasta)) { $conds[] = 'DATE(v.Fecha_Venta) <= :hasta'; $params[':hasta'] = $hasta; }
+            $where = $conds ? ('WHERE ' . implode(' AND ', $conds)) : '';
+            $sql = "SELECT v.ID_Venta, v.Fecha_Venta, v.ID_Cliente,
+                           u.Email AS ClienteEmail,
+                           (SELECT COALESCE(SUM(dv.Cantidad * dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total,
+                           (SELECT COUNT(*) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Items,
+                           (SELECT f.Numero_Factura FROM factura f WHERE f.ID_Venta = v.ID_Venta LIMIT 1) AS Factura,
+                           (SELECT p.Entidad_Bancaria FROM pago p WHERE p.ID_Venta = v.ID_Venta LIMIT 1) AS Entidad,
+                           (SELECT mp.Tipo_Metodo FROM pago p JOIN metodo_pago mp ON p.ID_Metodo = mp.ID_Metodo WHERE p.ID_Venta = v.ID_Venta LIMIT 1) AS Metodo
+                     FROM venta v
+                     LEFT JOIN usuario u ON u.ID_Cliente = v.ID_Cliente
+                     $where
+                     ORDER BY $orderSql $dir LIMIT $per OFFSET $off";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Venta::listar: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /** Exportación: trae TODO lo filtrado sin paginar (CSV/PDF). Respeta rol vía $idCliente. */
+    public function exportarVentas($idCliente = null, $q = '', $desde = '', $hasta = '')
+    {
+        try {
+            $conds = [];
+            $params = [];
+            if ($idCliente !== null) { $conds[] = 'v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $q = trim((string)$q);
+            if ($q !== '') {
+                $conds[] = "(v.ID_Venta LIKE :q1 OR u.Email LIKE :q2 OR EXISTS (SELECT 1 FROM factura f WHERE f.ID_Venta = v.ID_Venta AND f.Numero_Factura LIKE :q3))";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%';
+            }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$desde)) { $conds[] = 'DATE(v.Fecha_Venta) >= :desde'; $params[':desde'] = $desde; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$hasta)) { $conds[] = 'DATE(v.Fecha_Venta) <= :hasta'; $params[':hasta'] = $hasta; }
+            $where = $conds ? ('WHERE ' . implode(' AND ', $conds)) : '';
             $sql = "SELECT v.ID_Venta, v.Fecha_Venta, v.ID_Cliente,
                            u.Email AS ClienteEmail,
                            (SELECT COALESCE(SUM(dv.Cantidad * dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total,
@@ -213,12 +367,12 @@ class Venta
                     FROM venta v
                     LEFT JOIN usuario u ON u.ID_Cliente = v.ID_Cliente
                     $where
-                    ORDER BY v.ID_Venta DESC LIMIT 100";
+                    ORDER BY v.ID_Venta DESC LIMIT 2000";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            error_log("Venta::listar: " . $e->getMessage());
+            error_log("Venta::exportar: " . $e->getMessage());
             return [];
         }
     }
@@ -259,12 +413,16 @@ class Venta
     }
 
     /** RF 2.5: ventas pendientes por entregar (Preparando/En camino). */
-    public function listarPendientes($idCliente = null)
+    public function listarPendientes($idCliente = null, $q = '', $desde = '', $hasta = '')
     {
         try {
             $where = "WHERE pe.Estado_Pedido IN ('Pendiente','Pagado','Preparando','En camino')";
             $params = [];
             if ($idCliente !== null) { $where .= ' AND v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $q = trim((string)$q);
+            if ($q !== '') { $where .= " AND (v.ID_Venta LIKE :q1 OR pe.ID_Pedido LIKE :q2 OR c.Nombres LIKE :q3 OR c.Apellidos LIKE :q4)"; $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%'; $params[':q4'] = '%' . $q . '%'; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$desde)) { $where .= ' AND DATE(v.Fecha_Venta) >= :desde'; $params[':desde'] = $desde; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$hasta)) { $where .= ' AND DATE(v.Fecha_Venta) <= :hasta'; $params[':hasta'] = $hasta; }
             $sql = "SELECT pe.ID_Pedido, pe.Estado_Pedido, pe.Direccion_Envio, pe.Tipo_Envio,
                            ci.Nombre_Ciudad, v.ID_Venta, v.Fecha_Venta AS Fecha_Compra,
                            c.Nombres, c.Apellidos,
@@ -281,12 +439,16 @@ class Venta
     }
 
     /** RF 2.4: compras entregadas. */
-    public function listarEntregadas($idCliente = null)
+    public function listarEntregadas($idCliente = null, $q = '', $desde = '', $hasta = '')
     {
         try {
             $where = "WHERE pe.Estado_Pedido = 'Entregado'";
             $params = [];
             if ($idCliente !== null) { $where .= ' AND v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $q = trim((string)$q);
+            if ($q !== '') { $where .= " AND (v.ID_Venta LIKE :q1 OR pe.ID_Pedido LIKE :q2 OR c.Nombres LIKE :q3 OR c.Apellidos LIKE :q4)"; $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%'; $params[':q4'] = '%' . $q . '%'; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$desde)) { $where .= ' AND DATE(v.Fecha_Venta) >= :desde'; $params[':desde'] = $desde; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$hasta)) { $where .= ' AND DATE(v.Fecha_Venta) <= :hasta'; $params[':hasta'] = $hasta; }
             $sql = "SELECT pe.ID_Pedido, pe.Estado_Pedido, pe.Direccion_Envio,
                            v.ID_Venta, v.Fecha_Venta AS Fecha_Compra,
                            c.Nombres, c.Apellidos,
@@ -302,12 +464,17 @@ class Venta
     }
 
     /** RF 2.6: facturas generadas con cliente, total y fecha. */
-    public function listarFacturas($idCliente = null)
+    public function listarFacturas($idCliente = null, $q = '', $desde = '', $hasta = '')
     {
         try {
-            $where = '';
+            $conds = [];
             $params = [];
-            if ($idCliente !== null) { $where = 'WHERE v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            if ($idCliente !== null) { $conds[] = 'v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $q = trim((string)$q);
+            if ($q !== '') { $conds[] = "(f.Numero_Factura LIKE :q1 OR v.ID_Venta LIKE :q2 OR c.Nombres LIKE :q3 OR c.Apellidos LIKE :q4)"; $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%'; $params[':q4'] = '%' . $q . '%'; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$desde)) { $conds[] = 'DATE(v.Fecha_Venta) >= :desde'; $params[':desde'] = $desde; }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$hasta)) { $conds[] = 'DATE(v.Fecha_Venta) <= :hasta'; $params[':hasta'] = $hasta; }
+            $where = $conds ? ('WHERE ' . implode(' AND ', $conds)) : '';
             $sql = "SELECT f.Numero_Factura, f.Fecha_Emision, v.ID_Venta,
                            c.Nombres, c.Apellidos,
                            (SELECT COALESCE(SUM(dv.Cantidad*dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total,

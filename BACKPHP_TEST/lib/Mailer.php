@@ -421,4 +421,83 @@ class Mailer
             return ['ok' => false, 'error' => 'No se pudo enviar el aviso.'];
         }
     }
+
+    /**
+     * RF 5.4 + 5.7: confirmación de compra al comprador (instrucciones, total,
+     * método, estado inicial "Pendiente de pago") con la factura en PDF adjunta.
+     * $d = ['nombre','id_venta','fecha','total','metodo','factura','items'=>[['nombre','cant','precio']]]
+     * $pdfBytes = bytes del PDF o null (se envía igual sin adjunto).
+     */
+    public function enviarConfirmacionCompra($paraEmail, array $d, $pdfBytes = null)
+    {
+        if (trim((string)$paraEmail) === '' || !filter_var($paraEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'error' => 'Sin destinatario válido'];
+        }
+        if (!$this->isConfigured()) {
+            error_log("Mailer::confirmCompra: SMTP sin configurar, se omite aviso a $paraEmail.");
+            $this->registrar('compra', $paraEmail, '(sin asunto)', false, 'SMTP sin configurar (.env MAIL_*)');
+            return ['ok' => false, 'error' => 'SMTP sin configurar.'];
+        }
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host = $this->cfg['host'];
+            $mail->Port = (int)$this->cfg['port'];
+            $mail->Timeout = 15;
+            $mail->SMTPAuth = true;
+            $mail->Username = $this->cfg['username'];
+            $mail->Password = $this->cfg['password'];
+            if (!empty($this->cfg['encryption'])) {
+                $mail->SMTPSecure = $this->cfg['encryption'] === 'ssl'
+                    ? PHPMailer::ENCRYPTION_SMTPS
+                    : PHPMailer::ENCRYPTION_STARTTLS;
+            } else {
+                $mail->SMTPSecure = false;
+                $mail->SMTPAutoTLS = false;
+            }
+            $mail->CharSet = 'UTF-8';
+            $mail->setFrom($this->cfg['from_email'], $this->cfg['from_name']);
+            $mail->addAddress($paraEmail);
+            $mail->isHTML(true);
+            $mail->Subject = 'Confirmación de compra #' . ($d['id_venta'] ?? '') . ' — ÁCIDO Colombia';
+
+            $nombre = htmlspecialchars($d['nombre'] ?? $paraEmail, ENT_QUOTES, 'UTF-8');
+            $total = '$' . number_format((float)($d['total'] ?? 0), 0, ',', '.');
+            $metodo = htmlspecialchars($d['metodo'] ?? '-', ENT_QUOTES, 'UTF-8');
+            $factura = htmlspecialchars($d['factura'] ?? '-', ENT_QUOTES, 'UTF-8');
+            $fecha = htmlspecialchars($d['fecha'] ?? date('Y-m-d H:i'), ENT_QUOTES, 'UTF-8');
+            $filas = '';
+            foreach ((array)($d['items'] ?? []) as $it) {
+                $filas .= '<tr><td style="padding:8px;border-bottom:1px solid #edf2f7;">' . htmlspecialchars($it['nombre'] ?? '', ENT_QUOTES, 'UTF-8') . '</td>'
+                    . '<td align="center" style="padding:8px;border-bottom:1px solid #edf2f7;">' . (int)($it['cant'] ?? 0) . '</td>'
+                    . '<td align="right" style="padding:8px;border-bottom:1px solid #edf2f7;">$' . number_format((float)($it['precio'] ?? 0), 0, ',', '.') . '</td></tr>';
+            }
+            $mail->Body = '<!DOCTYPE html><html lang="es"><body style="margin:0;padding:0;background-color:#f4f5f7;">'
+                . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:24px 12px;">'
+                . '<tr><td align="center">'
+                . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;">'
+                . '<tr><td align="center" style="background-color:#1C3B4A;padding:28px 24px;"><div style="font-size:24px;font-weight:bold;letter-spacing:4px;color:#ffffff;">ACIDO</div>'
+                . '<div style="font-size:12px;letter-spacing:3px;color:#D48A3A;font-weight:bold;">COLOMBIA</div></td></tr>'
+                . '<tr><td style="padding:28px 32px 8px;font-family:Arial,Helvetica,sans-serif;color:#2d3748;">'
+                . '<h1 style="margin:0 0 12px;font-size:22px;color:#1C3B4A;">¡Gracias por tu compra, ' . $nombre . '!</h1>'
+                . '<p style="margin:0 0 12px;font-size:14px;line-height:22px;">Tu pedido <b>#' . htmlspecialchars((string)($d['id_venta'] ?? ''), ENT_QUOTES, 'UTF-8') . '</b> quedó en estado <b>Pendiente de pago</b>. Te avisaremos cuando avance a preparación y envío.</p>'
+                . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;"><thead><tr><th align="left">Producto</th><th>Cant.</th><th align="right">Precio</th></tr></thead><tbody>' . $filas . '</tbody></table>'
+                . '<p style="font-size:14px;">Total: <b>' . $total . '</b> · Método: <b>' . $metodo . '</b><br>Factura: <b>' . $factura . '</b> · Fecha: ' . $fecha . '</p>'
+                . '<p style="font-size:12px;color:#718096;">Tu factura electrónica va adjunta en este correo y queda almacenada en tu historial de compras.</p>'
+                . '</td></tr>'
+                . '<tr><td align="center" style="background-color:#1C3B4A;padding:18px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#a0aec0;">ACIDO COLOMBIA &copy; ' . date('Y') . '</td></tr>'
+                . '</table></td></tr></table></body></html>';
+            $mail->AltBody = "Gracias por tu compra #" . ($d['id_venta'] ?? '') . " por $total ($metodo). Estado: Pendiente de pago. Factura: " . ($d['factura'] ?? '-');
+            if (is_string($pdfBytes) && $pdfBytes !== '') {
+                $mail->addStringAttachment($pdfBytes, 'factura_' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)($d['factura'] ?? 'venta')) . '.pdf', 'base64', 'application/pdf');
+            }
+            $r = $this->sendWithRetry($mail, 'confirmCompra');
+            $this->registrar('compra', $paraEmail, $mail->Subject, !empty($r['ok']), $r['ok'] ? 'ENVIADO' : ($r['error'] ?? 'fallo'));
+            return $r;
+        } catch (Exception $e) {
+            error_log("Mailer::confirmCompra: " . $e->getMessage());
+            $this->registrar('compra', $paraEmail ?? '', 'Confirmación de compra', false, substr($e->getMessage(), 0, 200));
+            return ['ok' => false, 'error' => 'No se pudo enviar la confirmación.'];
+        }
+    }
 }

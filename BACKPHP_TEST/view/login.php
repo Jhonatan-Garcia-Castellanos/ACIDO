@@ -42,6 +42,9 @@
                 <!-- Mensaje de error para JavaScript -->
                 <div id="errorMsg" class="error-msg" style="display: none;"></div>
 
+                <?php if (!empty($_GET['error'])): ?>
+                    <div class="error-msg" style="display: block;"><?php echo htmlspecialchars($_GET['error']); ?></div>
+                <?php endif; ?>
                 <?php if (($_GET['status'] ?? '') === 'password_updated'): ?>
                     <div style="background:#c6f6d5;color:#22543d;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;font-size:13px;">
                         Contraseña actualizada. Ya puedes iniciar sesión.

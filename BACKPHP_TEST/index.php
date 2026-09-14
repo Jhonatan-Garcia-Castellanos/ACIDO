@@ -5,17 +5,22 @@ require_once "controller/VentaController.php";
 require_once "controller/DashboardController.php";
 require_once "controller/PasswordResetController.php";
 require_once "controller/NotificacionController.php";
+require_once "controller/PqrController.php";
 require_once "model/AlertaStock.php";
 require_once "lib/Mailer.php";
 require_once "lib/Csrf.php";
+require_once "helpers/Session.php";
 
-session_start();
+Session::start();
+// 1.3 Expiración por inactividad (15 min): si expiró mata y redirige/responde JSON
+Session::checkOrKill();
 $controller = new UsuarioController();
 $productoController = new ProductoController();
 $ventaController = new VentaController();
 $dashboardController = new DashboardController();
 $resetController = new PasswordResetController();
 $notifController = new NotificacionController();
+$pqrController = new PqrController();
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) $_SESSION['cart'] = [];
 
 // =========================================================================
@@ -32,9 +37,13 @@ $ACCESS = [
     'notificaciones' => ['Administrador', 'Empleado'], // Campana stock bajo RF 2.3
     'api_alertas' => ['Administrador', 'Empleado'], // Polling JSON campana
     'pedido_estado' => ['Administrador', 'Empleado'], // Logística RF 2.8/2.10 (sin Cliente)
+    'pedido_cancelar' => ['Administrador'], // Cancelar devuelve stock y mata la venta: solo Admin
     'catalogo'    => ['Administrador', 'Empleado', 'Cliente'], // Vitrina para Cliente
     'carrito'     => ['Administrador', 'Empleado', 'Cliente'],
     'ventas'      => ['Administrador', 'Empleado', 'Cliente'], // Admin/Empl ven todo, Cliente solo suyas
+    'informes'    => ['Administrador', 'Empleado'], // Módulo de Informes (CSV/PDF): sin Cliente
+    'pqr'         => ['Administrador', 'Empleado', 'Cliente'], // RF 3.1: form + historial (login requerido)
+    'pqr_gestion' => ['Administrador'], // RF 3.3: panel + responder + exportar (solo Admin)
 ];
 
 function homeForRole($rol) {
@@ -111,6 +120,60 @@ function checkCsrf() {
     $back = $_GET['action'] ?? 'login';
     header("Location: index.php?action=" . urlencode($back) . "&error=" . urlencode("Sesión vencida. Recarga la página e intenta de nuevo."));
     exit();
+}
+
+// Lista 3.2 + 4.1: params GET saneados para paginación (page/per), búsqueda LIKE (q),
+// orden ASC/DESC (order/dir) y rango de fechas (desde/hasta). Whitelist por módulo.
+function listParams($orders, $defaultOrder) {
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $per = isset($_GET['per']) ? (int)$_GET['per'] : 10;
+    if (!in_array($per, [5, 10, 20, 50], true)) $per = 10;
+    $q = trim((string)($_GET['q'] ?? ''));
+    if (strlen($q) > 80) $q = substr($q, 0, 80);
+    $order = $_GET['order'] ?? $defaultOrder;
+    if (!in_array($order, $orders, true)) $order = $defaultOrder;
+    $dir = (strtoupper($_GET['dir'] ?? 'DESC') === 'ASC') ? 'ASC' : 'DESC';
+    $desde = trim((string)($_GET['desde'] ?? ''));
+    $hasta = trim((string)($_GET['hasta'] ?? ''));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $desde)) $desde = '';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hasta)) $hasta = '';
+    if ($desde !== '' && $hasta !== '' && $desde > $hasta) { $t = $desde; $desde = $hasta; $hasta = $t; }
+    return [$page, $per, $q, $order, $dir, $desde, $hasta];
+}
+function pageQs($over = []) {
+    $base = ['page' => $_GET['page'] ?? 1, 'per' => $_GET['per'] ?? 10, 'q' => $_GET['q'] ?? '', 'order' => $_GET['order'] ?? '', 'dir' => $_GET['dir'] ?? 'DESC', 'desde' => $_GET['desde'] ?? '', 'hasta' => $_GET['hasta'] ?? '', 'tab' => $_GET['tab'] ?? ''];
+    foreach ($over as $k => $v) $base[$k] = $v;
+    $out = [];
+    foreach ($base as $k => $v) {
+        if ($v === '' || $v === null) continue;
+        $out[$k] = $v;
+    }
+    return http_build_query($out);
+}
+
+/** RF 4.4: fecha estimada de entrega según logística (días calendario).
+ *  Estándar +5, Express +2, Recogida en tienda = mismo día. */
+function fechaEstimada($fechaBase, $tipoEnvio) {
+    $dias = ['Estándar' => 5, 'Express' => 2, 'Recogida en tienda' => 0];
+    $n = $dias[trim((string)$tipoEnvio)] ?? 5;
+    $ts = strtotime((string)$fechaBase);
+    if ($ts === false) $ts = time();
+    return date('Y-m-d', strtotime("+$n days", $ts));
+}
+
+// Campana stock bajo (RF 2.3): conteo + items para view/partials/stock_bell.php.
+// Solo lectura (sin sincronizar ni enviar correos; eso ya lo hacen dashboard,
+// inventario y api_alertas). Para Cliente retorna [0, []].
+function stockBellData() {
+    $c = 0; $items = [];
+    try {
+        $r = $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente';
+        if (!in_array($r, ['Administrador', 'Empleado'], true)) return [$c, $items];
+        $al = new AlertaStock();
+        $c = (int)$al->contarNoLeidas();
+        $items = $al->listarNoLeidas(10);
+    } catch (Throwable $e) {}
+    return [$c, $items];
 }
 
 // 1. PROCESAR FORMULARIOS (POST)
@@ -255,6 +318,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                 "Foto" => $usuario["Foto"] ?? $usuario["foto"] ?? null,
                 "foto" => $usuario["foto"] ?? $usuario["Foto"] ?? null,
             ];
+            // 1.3: marca de actividad para el cierre por inactividad (15 min)
+            Session::touch();
 
             $homeOk = homeForRole($_SESSION["user"]["Rol"] ?? 'Cliente');
             if ($isAjax) {
@@ -388,6 +453,37 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["profile_action"]) && 
     exit();
 }
 
+// 1b2c. PQR: crear (RF 3.1, login requerido) y calificar (RF 3.2, POST+CSRF).
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["pqr_action"]) && $_POST["pqr_action"] === "crear") {
+    requireLogin();
+    checkCsrf();
+    $uidPqr = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+    $res = $pqrController->crear($uidPqr, $_POST["tipo"] ?? '', $_POST["descripcion"] ?? '');
+    header("Location: index.php?action=pqr&" . (!empty($res['ok']) ? "status" : "error") . "=" . urlencode($res['message'] ?? ''));
+    exit();
+}
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["rate_action"]) && $_POST["rate_action"] === "calificar") {
+    requireLogin();
+    checkCsrf();
+    $uidRate = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+    $res = $pqrController->calificar($uidRate, $_POST["id_producto"] ?? '', $_POST["estrellas"] ?? 0, $_POST["comentario"] ?? '');
+    header("Location: index.php?action=pqr&tab=resenas&" . (!empty($res['ok']) ? "status" : "error") . "=" . urlencode($res['message'] ?? ''));
+    exit();
+}
+// 1b2d. PQR panel admin: responder/cambiar estado (RF 3.3, solo Admin/Empleado).
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["pqr_action"]) && $_POST["pqr_action"] === "responder") {
+    requireRole('pqr_gestion');
+    checkCsrf();
+    $uidGest = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+    $res = $pqrController->responder($_POST["id_pqr"] ?? '', $_POST["respuesta"] ?? '', $_POST["estado"] ?? '', $uidGest);
+    $backPqr = "index.php?action=pqr&tab=panel";
+    foreach (['page' => 'page', 'per' => 'per', 'q' => 'q', 'filtro' => 'filtro', 'desde' => 'desde', 'hasta' => 'hasta'] as $gk => $pk) {
+        if (isset($_POST[$pk]) && $_POST[$pk] !== '') $backPqr .= '&' . $gk . '=' . urlencode($_POST[$pk]);
+    }
+    header("Location: " . $backPqr . "&" . (!empty($res['ok']) ? "status" : "error") . "=" . urlencode($res['message'] ?? ''));
+    exit();
+}
+
 // 1b. CRUD: ver/editar = Admin+Empleado, eliminar = solo Admin
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["crud_action"]) && $_POST["crud_action"] === "save") {
     requireRole('crud');
@@ -456,7 +552,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["alerta_action"])) {
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["pedido_estado"])) {
     requireRole('pedido_estado');
     checkCsrf();
-    $res = $ventaController->cambiarEstadoPedido($_POST["pedido_id"] ?? '', $_POST["pedido_estado"] ?? '');
+    // RF 4.3: cancelar es destructivo (devuelve stock) → solo Administrador.
+    // El Empleado avanza el flujo (Preparando→En camino→Entregado) pero no cancela.
+    if (($_POST["pedido_estado"] ?? '') === 'Cancelado') {
+        requireRole('pedido_cancelar');
+    }
+    $res = $ventaController->cambiarEstadoPedido($_POST["pedido_id"] ?? '', $_POST["pedido_estado"] ?? '', $_POST["motivo"] ?? '');
     $back = "index.php?action=ventas&tab=pendientes";
     header("Location: " . $back . "&" . (!empty($res['ok']) ? "status" : "error") . "=" . urlencode($res['message'] ?? ''));
     exit();
@@ -583,12 +684,8 @@ if (isset($_GET["action"])) {
     }
 
     if ($_GET["action"] === "logout") {
-        $_SESSION = [];
-        if (ini_get("session.use_cookies")) {
-            $params = session_get_cookie_params();
-            setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
-        }
-        session_destroy();
+        // 1.3 Cierre manual: destruye sesión, cookie y token (reusa helper)
+        Session::kill();
         header("Location: index.php?action=login");
         exit();
     }
@@ -653,32 +750,98 @@ if (isset($_GET["action"])) {
         exit();
     }
 
-    // Reporte de ventas en CSV (botón "Generar Reporte" del dashboard).
+    // Reporte de ventas en CSV (respeta filtros q/desde/hasta + rol).
     if ($_GET["action"] === "reporte_csv") {
-        requireRole('dashboard');
+        requireRole('informes');
         $uidRep = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
-        $filas = $ventaController->listarPara(currentRole(), $uidRep);
+        list($pgR, $perR, $qR, $ordR, $dirR, $desR, $hasR) = listParams(['ID_Venta','Fecha_Venta','Total'], 'ID_Venta');
+        $filas = $ventaController->exportarPara(currentRole(), $uidRep, $qR, $desR, $hasR);
+        $rangoFile = ($desR !== '' || $hasR !== '') ? ('_' . ($desR !== '' ? $desR : 'ini') . '_a_' . ($hasR !== '' ? $hasR : 'hoy')) : '';
         while (ob_get_level()) { ob_end_clean(); }
         header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="reporte_ventas_' . date('Ymd_His') . '.csv"');
+        header('Content-Disposition: attachment; filename="reporte_ventas' . $rangoFile . '_' . date('Ymd_His') . '.csv"');
         echo "\xEF\xBB\xBF"; // BOM para que Excel muestre tildes
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['ID_Venta', 'Fecha', 'Cliente', 'Items', 'Total', 'Metodo', 'Factura'], ';');
+        fputcsv($out, ['ID_Venta', 'Fecha', 'Cliente', 'Items', 'Total', 'Metodo', 'Entidad', 'Factura'], ';');
+        $totCsv = 0;
         foreach ($filas as $f) {
+            $totCsv += (float)($f['Total'] ?? 0);
+            $pago = (string)($f['Metodo'] ?? '-');
+            $ent = (string)($f['Entidad'] ?? '-');
+            // Combina método+entidad sin romper columnas: método va en su columna y entidad en la suya
             fputcsv($out, [
                 $f['ID_Venta'] ?? '', $f['Fecha_Venta'] ?? '',
                 $f['ClienteEmail'] ?? ('Cli ' . ($f['ID_Cliente'] ?? '')),
                 $f['Items'] ?? 0, $f['Total'] ?? 0,
-                $f['Metodo'] ?? '-', $f['Factura'] ?? '-',
+                $pago, $ent, $f['Factura'] ?? '-',
             ], ';');
         }
+        fputcsv($out, ['', '', 'TOTAL (' . count($filas) . ' ventas)', '', $totCsv, '', '', ''], ';');
         fclose($out);
+        exit();
+    }
+
+    // Reporte de ventas en PDF (lista 4.2: encabezado corporativo, tabla paginada, numeración).
+    if ($_GET["action"] === "reporte_pdf") {
+        requireRole('informes');
+        $uidPdf = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        list($pgP, $perP, $qP, $ordP, $dirP, $desP, $hasP) = listParams(['ID_Venta','Fecha_Venta','Total'], 'ID_Venta');
+        $filasPdf = $ventaController->exportarPara(currentRole(), $uidPdf, $qP, $desP, $hasP);
+        require_once __DIR__ . "/helpers/PdfSimple.php";
+        $rangoTxt = ($desP !== '' || $hasP !== '') ? ('Periodo: ' . ($desP !== '' ? $desP : '...') . ' a ' . ($hasP !== '' ? $hasP : '...')) : 'Periodo: todo';
+        if ($qP !== '') $rangoTxt .= ' | Busqueda: ' . $qP;
+        $uPdf = $_SESSION["user"] ?? [];
+        $genPor = ($uPdf["nombre_completo"] ?? $uPdf["nombre"] ?? $uPdf["Email"] ?? $uPdf["email"] ?? 'Usuario') . ' (' . currentRole() . ')';
+        $nPdf = count($filasPdf);
+        $totalGen = 0;
+        foreach ($filasPdf as $f) $totalGen += (float)($f['Total'] ?? 0);
+        $ticket = $nPdf > 0 ? $totalGen / $nPdf : 0;
+        $rangoFile = ($desP !== '' || $hasP !== '') ? ('_' . ($desP !== '' ? $desP : 'ini') . '_a_' . ($hasP !== '' ? $hasP : 'hoy')) : '';
+        $pdf = new PdfSimple();
+        $pdf->setFooter('ACIDO COLOMBIA - Generado por ' . $genPor . ' - ' . date('Y-m-d H:i'));
+        $pdf->title('ACIDO COLOMBIA - Reporte de Ventas', $rangoTxt . ' | Generado: ' . date('Y-m-d H:i') . ' por ' . $genPor);
+        $pdf->summary([
+            ['VENTAS', (string)$nPdf],
+            ['TOTAL', '$' . number_format($totalGen, 0, ',', '.')],
+            ['TICKET PROM.', '$' . number_format($ticket, 0, ',', '.')],
+            ['RANGO', ($desP !== '' || $hasP !== '') ? (($desP !== '' ? substr($desP, 5) : '...') . ' a ' . ($hasP !== '' ? substr($hasP, 5) : 'hoy')) : 'Todo'],
+        ]);
+        // Anchos = 769pt útiles (A4-H - márgenes). Pago/Factura con aire para no refundirse.
+        $widths = [40, 85, 230, 40, 85, 155, 134];
+        $pdf->row(['ID', 'Fecha', 'Cliente', 'Items', 'Total', 'Pago', 'Factura'], $widths, 18, true);
+        foreach ($filasPdf as $f) {
+            $tot = (float)($f['Total'] ?? 0);
+            $metodo = trim((string)($f['Metodo'] ?? '-'));
+            $ent = trim((string)($f['Entidad'] ?? ''));
+            // Corto y sin palabras largas: "Contra entrega •••• 0214" -> "Contra entrega 0214"
+            $entShort = str_replace(['•', '·', '*'], '', $ent);
+            $entShort = trim(preg_replace('/\s+/', ' ', $entShort));
+            if (strlen($entShort) > 9) $entShort = substr($entShort, -4);
+            $pago = ($entShort !== '' && $entShort !== '-') ? ($metodo . ' ' . $entShort) : $metodo;
+            $cli = trim((string)($f['ClienteEmail'] ?? ('Cli ' . ($f['ID_Cliente'] ?? ''))));
+            $pdf->row([
+                (string)($f['ID_Venta'] ?? ''),
+                substr((string)($f['Fecha_Venta'] ?? ''), 0, 16),
+                $cli,
+                (string)($f['Items'] ?? 0),
+                '$' . number_format($tot, 0, ',', '.'),
+                $pago,
+                substr((string)($f['Factura'] ?? '-'), 0, 22),
+            ], $widths, 16, false);
+        }
+        $pdf->row(['', '', 'TOTAL (' . $nPdf . ' ventas)', '', '$' . number_format($totalGen, 0, ',', '.'), '', ''], $widths, 18, true);
+        $pdf->output('reporte_ventas' . $rangoFile . '_' . date('Ymd_His') . '.pdf');
         exit();
     }
 
     if ($_GET["action"] === "crud") {
         requireRole('crud');
-        $registros = $controller->listar();
+        list($alertCount, $alertItems) = stockBellData();
+        list($crudPage, $crudPer, $crudQ, $crudOrder, $crudDir) = listParams(['ID_Usuario','Email','Rol'], 'ID_Usuario');
+        $registros = $controller->listar($crudPage, $crudPer, $crudQ, $crudOrder, $crudDir);
+        $crudTotal = $controller->contar($crudQ);
+        $crudPages = max(1, (int)ceil($crudTotal / $crudPer));
+        if ($crudPage > $crudPages) { $crudPage = $crudPages; $registros = $controller->listar($crudPage, $crudPer, $crudQ, $crudOrder, $crudDir); }
         require_once "view/crud.php";
         exit();
     }
@@ -752,7 +915,11 @@ if (isset($_GET["action"])) {
             exit();
         }
         requireRole('inventario');
-        $productos = $productoController->listar();
+        list($invPage, $invPer, $invQ, $invOrder, $invDir) = listParams(['ID_Producto','Nombre_Producto','Precio_Actual','Stock_Actual'], 'ID_Producto');
+        $productos = $productoController->listar($invPage, $invPer, $invQ, $invOrder, $invDir);
+        $invTotal = $productoController->contar($invQ);
+        $invPages = max(1, (int)ceil($invTotal / $invPer));
+        if ($invPage > $invPages) { $invPage = $invPages; $productos = $productoController->listar($invPage, $invPer, $invQ, $invOrder, $invDir); }
         $categorias = $productoController->categorias();
         $proveedores = $productoController->proveedores();
         $resumen = $productoController->resumen();
@@ -795,14 +962,37 @@ if (isset($_GET["action"])) {
             header("Location: index.php?action=catalogo");
             exit();
         }
-        // RF 5.5 Comprar ahora: agrega 1 unidad y redirige al carrito (paso envío)
+        // RF 5.5 Comprar ahora: vacía el carrito y compra SOLO este producto (1 unidad)
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"]) && $_POST["cart_action"] === "buy_now") {
             checkCsrf();
-            $ventaController->agregar($_POST["id"] ?? '', 1);
+            $ventaController->vaciar();
+            if (!$ventaController->agregar($_POST["id"] ?? '', 1)) {
+                header("Location: index.php?action=catalogo&error=" . urlencode("Sin stock disponible"));
+                exit();
+            }
             header("Location: index.php?action=carrito&step=2");
             exit();
         }
+        // RF 5.8 Lista de espera: avísame cuando vuelva el stock (requiere login)
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["espera_action"]) && $_POST["espera_action"] === "anotar") {
+            requireLogin();
+            checkCsrf();
+            $uEsp = $_SESSION["user"] ?? [];
+            $nomEsp = trim($_POST["nombre"] ?? ($uEsp["nombre_completo"] ?? $uEsp["nombre"] ?? ''));
+            $emaEsp = trim($_POST["email"] ?? ($uEsp["Email"] ?? $uEsp["email"] ?? ''));
+            $resEsp = $productoController->anotarEspera($_POST["id"] ?? '', $nomEsp, $emaEsp);
+            $isAjaxEsp = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjaxEsp) {
+                while (ob_get_level()) { ob_end_clean(); }
+                header('Content-Type: application/json');
+                echo json_encode(['success' => !empty($resEsp['ok']), 'message' => $resEsp['message'] ?? '']);
+                exit();
+            }
+            header("Location: index.php?action=catalogo&" . (!empty($resEsp['ok']) ? "status" : "error") . "=" . urlencode($resEsp['message'] ?? ''));
+            exit();
+        }
         $items = $productoController->catalogo();
+        list($alertCount, $alertItems) = stockBellData();
         require_once "view/catalogo.php";
         exit();
     }
@@ -842,15 +1032,42 @@ if (isset($_GET["action"])) {
                 header("Location: index.php?action=carrito");
                 exit();
             }
-            // Guardar datos de envío y avanzar al paso de pago
+            // Guardar datos de envío y avanzar al paso de pago (RF 1.1: DNI 6-12, tel 7/10)
             if ($_POST["cart_action"] === "save_shipping") {
+                $shNom = trim($_POST['nombres'] ?? '');
+                $shApe = trim($_POST['apellidos'] ?? '');
+                $shDni = trim($_POST['dni'] ?? '');
+                $shDir = trim($_POST['direccion'] ?? '');
+                $shTel = trim($_POST['telefono'] ?? '');
+                $shMail = trim($_POST['correo'] ?? '');
+                $nomRx = '/^[\p{L} .\'-]{2,100}$/u';
+                if (!preg_match($nomRx, $shNom) || !preg_match($nomRx, $shApe)) {
+                    header("Location: index.php?action=carrito&step=2&error=" . urlencode("Nombres y apellidos inválidos (solo letras, 2-100)."));
+                    exit();
+                }
+                if (!preg_match('/^[0-9]{6,12}$/', $shDni)) {
+                    header("Location: index.php?action=carrito&step=2&error=" . urlencode("DNI/Cédula inválido: 6 a 12 dígitos numéricos."));
+                    exit();
+                }
+                if (!preg_match('/^[0-9]{7}$|^[0-9]{10}$/', $shTel)) {
+                    header("Location: index.php?action=carrito&step=2&error=" . urlencode("Teléfono inválido: 7 o 10 dígitos numéricos."));
+                    exit();
+                }
+                if (strlen($shDir) < 5 || strlen($shDir) > 200) {
+                    header("Location: index.php?action=carrito&step=2&error=" . urlencode("Dirección inválida (5-200 caracteres)."));
+                    exit();
+                }
+                if (!filter_var($shMail, FILTER_VALIDATE_EMAIL) || strlen($shMail) > 120) {
+                    header("Location: index.php?action=carrito&step=2&error=" . urlencode("Correo electrónico inválido."));
+                    exit();
+                }
                 $_SESSION['shipping'] = [
-                    'nombres'   => trim($_POST['nombres'] ?? ''),
-                    'apellidos' => trim($_POST['apellidos'] ?? ''),
-                    'dni'       => trim($_POST['dni'] ?? ''),
-                    'direccion' => trim($_POST['direccion'] ?? ''),
-                    'telefono'  => trim($_POST['telefono'] ?? ''),
-                    'correo'    => trim($_POST['correo'] ?? ''),
+                    'nombres'   => $shNom,
+                    'apellidos' => $shApe,
+                    'dni'       => $shDni,
+                    'direccion' => $shDir,
+                    'telefono'  => $shTel,
+                    'correo'    => $shMail,
                 ];
                 header("Location: index.php?action=carrito&step=3");
                 exit();
@@ -862,7 +1079,7 @@ if (isset($_GET["action"])) {
                     'numero_tarjeta' => $_POST["numero_tarjeta"] ?? '',
                     'cuenta'         => $_POST["cuenta"] ?? '',
                 ];
-                $res = $ventaController->checkout($uid, $_POST["id_metodo"] ?? '', $detallePago);
+                $res = $ventaController->checkout($uid, $_POST["id_metodo"] ?? '', $detallePago, $_FILES["comprobante"] ?? null);
                 if (isset($res['ID_Venta'])) {
                     unset($_SESSION['shipping']);
                     $url = "index.php?action=carrito&ok=" . $res['ID_Venta'];
@@ -871,12 +1088,15 @@ if (isset($_GET["action"])) {
                     header("Location: " . $url);
                     exit();
                 }
-                header("Location: index.php?action=carrito&step=3&error=" . urlencode($res['error'] ?? 'No se pudo comprar'));
+                // Carrito vacío (doble envío/atrás): vuelve al paso 1, no al pago
+                $stepBack = (($res['error'] ?? '') === 'Carrito vacío') ? 1 : 3;
+                header("Location: index.php?action=carrito&step=" . $stepBack . "&error=" . urlencode($res['error'] ?? 'No se pudo comprar'));
                 exit();
             }
         }
         $cartData = $ventaController->detalle();
         $metodos = $ventaController->metodos();
+        list($alertCount, $alertItems) = stockBellData();
         $checkoutStep = isset($_GET['step']) ? max(1, min(3, (int)$_GET['step'])) : 1;
         $shipping = $_SESSION['shipping'] ?? null;
         require_once "view/carrito.php";
@@ -886,13 +1106,18 @@ if (isset($_GET["action"])) {
     if ($_GET["action"] === "ventas") {
         requireRole('ventas');
         $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
-        $ventas = $ventaController->listarPara(currentRole(), $uid);
+        list($alertCount, $alertItems) = stockBellData();
+        list($vPage, $vPer, $vQ, $vOrder, $vDir, $vDesde, $vHasta) = listParams(['ID_Venta','Fecha_Venta','Total'], 'ID_Venta');
+        $ventas = $ventaController->listarPara(currentRole(), $uid, $vPage, $vPer, $vQ, $vDesde, $vHasta, $vOrder, $vDir);
+        $vTotal = $ventaController->contarPara(currentRole(), $uid, $vQ, $vDesde, $vHasta);
+        $vPages = max(1, (int)ceil($vTotal / $vPer));
+        if ($vPage > $vPages) { $vPage = $vPages; $ventas = $ventaController->listarPara(currentRole(), $uid, $vPage, $vPer, $vQ, $vDesde, $vHasta, $vOrder, $vDir); }
         $resumenHoy = $ventaController->resumenHoyPara(currentRole(), $uid);
         $tabVentas = $_GET['tab'] ?? 'ventas';
         if (!in_array($tabVentas, ['ventas','pendientes','entregadas','facturas'], true)) $tabVentas = 'ventas';
-        $pendientes = $ventaController->pendientesPara(currentRole(), $uid);
-        $entregadas = $ventaController->entregadasPara(currentRole(), $uid);
-        $facturas = $ventaController->facturasPara(currentRole(), $uid);
+        $pendientes = $ventaController->pendientesPara(currentRole(), $uid, $vQ, $vDesde, $vHasta);
+        $entregadas = $ventaController->entregadasPara(currentRole(), $uid, $vQ, $vDesde, $vHasta);
+        $facturas = $ventaController->facturasPara(currentRole(), $uid, $vQ, $vDesde, $vHasta);
         // Detalle por venta se carga bajo demanda vía action=venta_detalle (AJAX).
         require_once "view/ventas.php";
         exit();
@@ -907,18 +1132,112 @@ if (isset($_GET["action"])) {
         $out = ['success' => false, 'items' => []];
         if (ctype_digit((string)$idV)) {
             $uidDet = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
-            $mine = array_map('intval', array_column($ventaController->listarPara(currentRole(), $uidDet), 'ID_Venta'));
+            $mine = array_map('intval', array_column($ventaController->exportarPara(currentRole(), $uidDet), 'ID_Venta'));
             if (in_array((int)$idV, $mine, true)) {
-                $out = ['success' => true, 'items' => $ventaController->detalleVenta($idV)];
+                // RF 2.2: productos + ficha del comprador (nombre, documento, usuario)
+                $full = $ventaController->detalleCompleto($idV);
+                $out = ['success' => true, 'items' => $full['items'], 'cliente' => $full['cliente']];
             }
         }
         echo json_encode($out);
         exit();
     }
 
+    if ($_GET["action"] === "pqr") {
+        requireRole('pqr'); // RF 3.1: sin login redirige al login
+        $uidPqrV = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        list($alertCount, $alertItems) = stockBellData();
+        $tabPqr = $_GET['tab'] ?? 'nuevo';
+        $esGestPqr = (currentRole() === 'Administrador'); // Panel PQR solo Admin (Empleado = como Cliente)
+        if (!in_array($tabPqr, ['nuevo', 'mis', 'resenas', 'panel'], true)) $tabPqr = 'nuevo';
+        if ($tabPqr === 'panel' && !$esGestPqr) $tabPqr = 'mis';
+        $misPqr = $pqrController->misPqr($uidPqrV, 1, 20);
+        $misTotalPqr = $pqrController->contarMis($uidPqrV);
+        $porCalificar = $pqrController->porCalificar($uidPqrV);
+        $misResenas = $pqrController->misResenas($uidPqrV);
+        $panelPqr = []; $panelTotalPqr = 0; $panelPages = 1;
+        $pqPage = 1; $pqPer = 10; $pqQ = ''; $pqFiltro = ''; $pqDesde = ''; $pqHasta = '';
+        if ($esGestPqr) {
+            list($pqPage, $pqPer, $pqQ, $pqOrd, $pqDir, $pqDesde, $pqHasta) = listParams(['ID_Pqr'], 'ID_Pqr');
+            $pqFiltro = trim((string)($_GET['filtro'] ?? ''));
+            if (!in_array($pqFiltro, ['', 'pend', 'res', 'Abierto', 'En Proceso', 'Cerrado'], true)) $pqFiltro = '';
+            $panelPqr = $pqrController->panel($pqPage, $pqPer, $pqQ, $pqFiltro, $pqDesde, $pqHasta);
+            $panelTotalPqr = $pqrController->contarPanel($pqQ, $pqFiltro, $pqDesde, $pqHasta);
+            $panelPages = max(1, (int)ceil($panelTotalPqr / $pqPer));
+            if ($pqPage > $panelPages) { $pqPage = $panelPages; $panelPqr = $pqrController->panel($pqPage, $pqPer, $pqQ, $pqFiltro, $pqDesde, $pqHasta); }
+        }
+        require_once "view/pqr.php";
+        exit();
+    }
+
+    // Exporta panel PQR filtrado en CSV (RF 3.3). Solo Admin/Empleado.
+    if ($_GET["action"] === "pqr_csv") {
+        requireRole('pqr_gestion');
+        list($pgR, $perR, $qR, $ordR, $dirR, $desR, $hasR) = listParams(['ID_Pqr'], 'ID_Pqr');
+        $filR = trim((string)($_GET['filtro'] ?? ''));
+        if (!in_array($filR, ['', 'pend', 'res', 'Abierto', 'En Proceso', 'Cerrado'], true)) $filR = '';
+        $filas = $pqrController->panel(1, 2000, $qR, $filR, $desR, $hasR);
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="reporte_pqr_' . date('Ymd_His') . '.csv"');
+        echo "\xEF\xBB\xBF";
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['ID_Pqr', 'Fecha', 'Cliente', 'Tipo', 'Estado', 'Descripcion', 'Respuesta'], ';');
+        foreach ($filas as $f) {
+            fputcsv($out, [
+                $f['ID_Pqr'] ?? '', $f['Fecha_Registro'] ?? '',
+                trim(($f['Nombres'] ?? '') . ' ' . ($f['Apellidos'] ?? '')) . ' <' . ($f['ClienteEmail'] ?? '') . '>',
+                $f['Tipo'] ?? '', $f['Estado'] ?? '',
+                $f['Descripcion'] ?? '', $f['Respuesta'] ?? '-',
+            ], ';');
+        }
+        fclose($out);
+        exit();
+    }
+
+    // Exporta panel PQR filtrado en PDF (RF 3.3: encabezado, tabla paginada, numeración).
+    if ($_GET["action"] === "pqr_pdf") {
+        requireRole('pqr_gestion');
+        list($pgP, $perP, $qP, $ordP, $dirP, $desP, $hasP) = listParams(['ID_Pqr'], 'ID_Pqr');
+        $filP = trim((string)($_GET['filtro'] ?? ''));
+        if (!in_array($filP, ['', 'pend', 'res', 'Abierto', 'En Proceso', 'Cerrado'], true)) $filP = '';
+        $filasPqr = $pqrController->panel(1, 2000, $qP, $filP, $desP, $hasP);
+        require_once __DIR__ . "/helpers/PdfSimple.php";
+        $uPdf = $_SESSION["user"] ?? [];
+        $genPor = ($uPdf["nombre_completo"] ?? $uPdf["nombre"] ?? $uPdf["Email"] ?? 'Usuario') . ' (' . currentRole() . ')';
+        $rangoTxt = ($desP !== '' || $hasP !== '') ? ('Periodo: ' . ($desP !== '' ? $desP : '...') . ' a ' . ($hasP !== '' ? $hasP : '...')) : 'Periodo: todo';
+        if ($filP !== '') $rangoTxt .= ' | Filtro: ' . $filP;
+        if ($qP !== '') $rangoTxt .= ' | Busqueda: ' . $qP;
+        $pdf = new PdfSimple();
+        $pdf->setFooter('ACIDO COLOMBIA - PQR - Generado por ' . $genPor . ' - ' . date('Y-m-d H:i'));
+        $pdf->title('ACIDO COLOMBIA - Reporte PQR', $rangoTxt . ' | Generado: ' . date('Y-m-d H:i') . ' por ' . $genPor);
+        $pdf->summary([
+            ['CASOS', (string)count($filasPqr)],
+            ['ABIERTOS', (string)count(array_filter($filasPqr, fn($x) => ($x['Estado'] ?? '') === 'Abierto'))],
+            ['EN PROCESO', (string)count(array_filter($filasPqr, fn($x) => ($x['Estado'] ?? '') === 'En Proceso'))],
+            ['CERRADOS', (string)count(array_filter($filasPqr, fn($x) => ($x['Estado'] ?? '') === 'Cerrado'))],
+        ]);
+        $widths = [40, 80, 190, 70, 80, 190, 119];
+        $pdf->row(['ID', 'Fecha', 'Cliente', 'Tipo', 'Estado', 'Caso', 'Respuesta'], $widths, 18, true);
+        foreach ($filasPqr as $f) {
+            $pdf->row([
+                (string)($f['ID_Pqr'] ?? ''),
+                substr((string)($f['Fecha_Registro'] ?? ''), 0, 16),
+                substr(trim(($f['Nombres'] ?? '') . ' ' . ($f['Apellidos'] ?? '')), 0, 30),
+                substr((string)($f['Tipo'] ?? ''), 0, 12),
+                substr((string)($f['Estado'] ?? ''), 0, 12),
+                substr((string)($f['Descripcion'] ?? ''), 0, 60),
+                substr((string)($f['Respuesta'] ?? '-'), 0, 40),
+            ], $widths, 16, false);
+        }
+        $pdf->output('reporte_pqr_' . date('Ymd_His') . '.pdf');
+        exit();
+    }
+
     if ($_GET["action"] === "profile") {
         requireLogin();
         syncRoleFromDb();
+        list($alertCount, $alertItems) = stockBellData();
         $uidPerfil = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
         $perfilDetalle = $controller->datosPersona($uidPerfil);
         require_once "view/perfil.php";
@@ -928,6 +1247,7 @@ if (isset($_GET["action"])) {
     if ($_GET["action"] === "config") {
         requireLogin();
         syncRoleFromDb();
+        list($alertCount, $alertItems) = stockBellData();
         require_once "view/config.php";
         exit();
     }

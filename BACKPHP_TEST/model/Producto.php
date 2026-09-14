@@ -11,9 +11,40 @@ class Producto
         $this->db = $conexionObj->conn;
     }
 
-    public function obtenerTodos()
+    public function contarProductos($q = '')
     {
         try {
+            $q = trim((string)$q);
+            $where = '';
+            $params = [];
+            if ($q !== '') {
+                $where = "WHERE (p.Nombre_Producto LIKE :q1 OR c.Nombre_Categoria LIKE :q2 OR pr.Nombre_Empresa LIKE :q3)";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%';
+            }
+            $stmt = $this->db->prepare("SELECT COUNT(*) AS c FROM producto p LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor $where");
+            $stmt->execute($params);
+            $r = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($r['c'] ?? 0);
+        } catch (PDOException $e) { return 0; }
+    }
+
+    public function obtenerTodos($page = 1, $per = 10, $q = '', $order = 'ID_Producto', $dir = 'DESC')
+    {
+        try {
+            $page = max(1, (int)$page);
+            $per = (int)$per;
+            if (!in_array($per, [5, 10, 20, 50], true)) $per = 10;
+            $off = ($page - 1) * $per;
+            $map = ['ID_Producto' => 'p.ID_Producto', 'Nombre_Producto' => 'p.Nombre_Producto', 'Precio_Actual' => 'p.Precio_Actual', 'Stock_Actual' => 'p.Stock_Actual'];
+            $orderSql = $map[$order] ?? 'p.ID_Producto';
+            $dir = (strtoupper($dir) === 'ASC') ? 'ASC' : 'DESC';
+            $q = trim((string)$q);
+            $where = '';
+            $params = [];
+            if ($q !== '') {
+                $where = "WHERE (p.Nombre_Producto LIKE :q1 OR c.Nombre_Categoria LIKE :q2 OR pr.Nombre_Empresa LIKE :q3)";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%';
+            }
             try {
                 $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
                                p.Stock_Minimo,
@@ -23,8 +54,9 @@ class Producto
                         FROM producto p
                         LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
                         LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
-                        ORDER BY p.ID_Producto DESC LIMIT 200";
-                $stmt = $this->db->query($sql);
+                        $where ORDER BY $orderSql $dir LIMIT $per OFFSET $off";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute($params);
             } catch (PDOException $e) {
                 // Pre-migración: sin columna Stock_Minimo
                 $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
@@ -35,8 +67,9 @@ class Producto
                         FROM producto p
                         LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
                         LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
-                        ORDER BY p.ID_Producto DESC LIMIT 200";
-                $stmt = $this->db->query($sql);
+                        $where ORDER BY $orderSql $dir LIMIT $per OFFSET $off";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute($params);
             }
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -160,16 +193,56 @@ class Producto
     public function obtenerCatalogo()
     {
         try {
+            // Incluye agotados al final (etiqueta Agotado + lista de espera RF 5.8 / 4.6).
             $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
                            p.Imagen_URL, c.Nombre_Categoria
                     FROM producto p
                     LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
-                    WHERE p.deleted_at IS NULL AND p.Stock_Actual > 0
-                    ORDER BY p.ID_Producto DESC LIMIT 100";
+                    WHERE p.deleted_at IS NULL
+                    ORDER BY (p.Stock_Actual > 0) DESC, p.ID_Producto DESC LIMIT 100";
             return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Producto::obtenerCatalogo: " . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * RF 5.8: anota interés por un producto agotado (avisar al reponer).
+     * Retorna ['ok'=>bool,'message'=>].
+     */
+    public function registrarEspera($idProducto, $nombre, $email)
+    {
+        if (!ctype_digit((string)$idProducto)) {
+            return ['ok' => false, 'message' => 'Producto inválido.'];
+        }
+        $nombre = trim((string)$nombre);
+        $email = strtolower(trim((string)$email));
+        if (strlen($nombre) < 2 || strlen($nombre) > 150) {
+            return ['ok' => false, 'message' => 'Indica tu nombre (2-150 caracteres).'];
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 100) {
+            return ['ok' => false, 'message' => 'Correo electrónico inválido.'];
+        }
+        try {
+            $chk = $this->db->prepare("SELECT Stock_Actual, Nombre_Producto FROM producto WHERE ID_Producto = :p AND deleted_at IS NULL LIMIT 1");
+            $chk->execute([':p' => $idProducto]);
+            $prod = $chk->fetch(PDO::FETCH_ASSOC);
+            if (!$prod) return ['ok' => false, 'message' => 'El producto no existe.'];
+            if ((int)$prod['Stock_Actual'] > 0) {
+                return ['ok' => false, 'message' => 'Buenas noticias: hay stock disponible, agrégalo al carrito.'];
+            }
+            $dup = $this->db->prepare("SELECT 1 FROM lista_espera_stock WHERE ID_Producto = :p AND Email = :e LIMIT 1");
+            $dup->execute([':p' => $idProducto, ':e' => $email]);
+            if ($dup->fetch()) {
+                return ['ok' => false, 'message' => 'Ya estás en la lista de espera de este producto. Te avisaremos.'];
+            }
+            $ins = $this->db->prepare("INSERT INTO lista_espera_stock (Nombre_Completo, Email, ID_Producto) VALUES (:n, :e, :p)");
+            $ins->execute([':n' => substr($nombre, 0, 150), ':e' => $email, ':p' => $idProducto]);
+            return ['ok' => true, 'message' => 'Anotado. Te avisaremos al correo cuando vuelva a estar disponible.'];
+        } catch (PDOException $e) {
+            error_log("Producto::registrarEspera: " . $e->getMessage());
+            return ['ok' => false, 'message' => 'No se pudo registrar. Intenta más tarde.'];
         }
     }
 

@@ -78,6 +78,10 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 <i class="fa-solid fa-receipt"></i>
                 <span class="sidebar-text">Ventas</span>
             </a>
+            <a href="index.php?action=pqr" class="nav-item">
+                <i class="fa-solid fa-headset"></i>
+                <span class="sidebar-text">PQR y Ayuda</span>
+            </a>
             <?php if (in_array($__rol, ['Administrador','Empleado'], true)): ?>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item active">
@@ -111,10 +115,11 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                             <div id="stockDropdownList">
                                 <?php if (!empty($alertItems)): ?>
                                     <?php foreach ($alertItems as $a): ?>
-                                        <div style="padding:10px 14px;border-bottom:1px solid #edf2f7;font-size:13px;">
+                                        <?php $aPid = (int)($a['ID_Producto'] ?? 0); $aHref = 'index.php?action=inventario&filtro=bajo' . ($aPid > 0 ? '&hl=' . $aPid : ''); ?>
+                                        <a href="<?php echo $aHref; ?>" style="display:block;text-decoration:none;padding:10px 14px;border-bottom:1px solid #edf2f7;font-size:13px;">
                                             <div style="font-weight:700;color:#9b2c2c;"><?php echo htmlspecialchars($a['Mensaje'] ?? $a['Nombre_Producto'] ?? 'Stock bajo'); ?></div>
-                                            <div style="color:#a0aec0;font-size:12px;"><?php echo htmlspecialchars($a['Fecha_Creacion'] ?? ''); ?></div>
-                                        </div>
+                                            <div style="color:#a0aec0;font-size:12px;"><?php echo htmlspecialchars($a['Fecha_Creacion'] ?? ''); ?> <span style="color:#4e73df;font-weight:700;">→ Ver en inventario</span></div>
+                                        </a>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <div style="padding:14px;color:#718096;font-size:13px;">Sin alertas pendientes.</div>
@@ -129,10 +134,6 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                             </form>
                             <?php endif; ?>
                         </div>
-                    </div>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span class="badge yellow">7</span>
                     </div>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
@@ -252,16 +253,28 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 <div class="crud-modern-card">
                     <div class="crud-modern-header">
                         <i class="fa-solid fa-table-list"></i>
-                        <span>Productos (<?php echo count($productos); ?>)</span>
+                        <span>Productos (<?php echo (int)($invTotal ?? count($productos)); ?>)</span>
                     </div>
+                    <?php $invPage = $invPage ?? 1; $invPer = $invPer ?? 10; $invQ = $invQ ?? ''; $invOrder = $invOrder ?? 'ID_Producto'; $invDir = $invDir ?? 'DESC'; $invPages = $invPages ?? 1;
+                    $invArrow = function($col) use ($invOrder, $invDir) { return ($invOrder === $col) ? ($invDir === 'ASC' ? ' ▲' : ' ▼') : ''; };
+                    $invLink = function($col) use ($invOrder, $invDir, $invQ, $invPer) { $nd = ($invOrder === $col && $invDir === 'DESC') ? 'ASC' : 'DESC'; return 'index.php?action=inventario&' . http_build_query(['page' => 1, 'per' => $invPer, 'q' => $invQ, 'order' => $col, 'dir' => $nd]); }; ?>
+                    <form method="GET" action="index.php" style="display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;align-items:center;">
+                        <input type="hidden" name="action" value="inventario">
+                        <input type="text" name="q" placeholder="Buscar producto, categoría, proveedor... (LIKE)" class="crud-input" style="flex:1;min-width:200px;" value="<?php echo htmlspecialchars($invQ); ?>">
+                        <select name="per" class="crud-input" style="width:110px;flex-shrink:0;" onchange="this.form.submit()">
+                            <?php foreach ([5,10,20,50] as $pp): ?><option value="<?php echo $pp; ?>" <?php echo ((int)$invPer === $pp) ? 'selected' : ''; ?>><?php echo $pp; ?> / pág</option><?php endforeach; ?>
+                        </select>
+                        <button type="submit" class="btn-crud-save" style="flex-shrink:0;">Buscar</button>
+                        <?php if ($invQ !== ''): ?><a href="index.php?action=inventario" class="btn-crud-cancel" style="text-decoration:none;flex-shrink:0;">Limpiar</a><?php endif; ?>
+                    </form>
                     <div style="overflow-x:auto;">
                         <table class="crud-table" id="invTable">
                             <thead>
                                 <tr>
-                                    <th><b>ID</b></th>
-                                    <th><b>Producto</b></th>
-                                    <th><b>Precio</b></th>
-                                    <th><b>Stock / Mín</b></th>
+                                    <th><a href="<?php echo $invLink('ID_Producto'); ?>" style="color:inherit;text-decoration:none;"><b>ID<?php echo $invArrow('ID_Producto'); ?></b></a></th>
+                                    <th><a href="<?php echo $invLink('Nombre_Producto'); ?>" style="color:inherit;text-decoration:none;"><b>Producto<?php echo $invArrow('Nombre_Producto'); ?></b></a></th>
+                                    <th><a href="<?php echo $invLink('Precio_Actual'); ?>" style="color:inherit;text-decoration:none;"><b>Precio<?php echo $invArrow('Precio_Actual'); ?></b></a></th>
+                                    <th><a href="<?php echo $invLink('Stock_Actual'); ?>" style="color:inherit;text-decoration:none;"><b>Stock / Mín<?php echo $invArrow('Stock_Actual'); ?></b></a></th>
                                     <th><b>Categoría</b></th>
                                     <th><b>Proveedor</b></th>
                                     <th><b>Estado</b></th>
@@ -274,13 +287,13 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                         $pActivo = (int)($row['Activo'] ?? 1);
                                         $isAdminInv = ($__rol === 'Administrador');
                                     ?>
-                                        <tr>
+                                        <tr id="prod-<?php echo (int)$row['ID_Producto']; ?>">
                                             <td style="font-weight:bold;"><?php echo htmlspecialchars($row['ID_Producto']); ?></td>
                                             <td><strong><?php echo htmlspecialchars($row['Nombre_Producto']); ?></strong></td>
                                             <td>$<?php echo number_format($row['Precio_Actual'], 0, ',', '.'); ?></td>
                                             <td>
                                                 <?php $st = (int)$row['Stock_Actual']; $mn = (int)($row['Stock_Minimo'] ?? 10); ?>
-                                                <span style="background:<?php echo $st==0?'#fed7d7;color:#9b2c2c':($st<=$mn?'#fed7d7;color:#9b2c2c':'#c6f6d5;color:#22543d'); ?>;padding:4px 8px;border-radius:4px;font-weight:700;" title="Mínimo: <?php echo $mn; ?>"><?php echo $st; ?> / <?php echo $mn; ?></span>
+                                                <span style="background:<?php echo $st==0?'#fed7d7;color:#9b2c2c':($st<=$mn?'#fed7d7;color:#9b2c2c':'#c6f6d5;color:#22543d'); ?>;padding:4px 8px;border-radius:4px;font-weight:700;white-space:nowrap;" title="Mínimo: <?php echo $mn; ?>"><?php echo $st; ?> / <?php echo $mn; ?></span>
                                             </td>
                                             <td><?php echo htmlspecialchars($row['Nombre_Categoria'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($row['Proveedor'] ?? '-'); ?></td>
@@ -329,6 +342,14 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                 <?php endif; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;justify-content:center;padding:14px;flex-wrap:wrap;">
+                        <?php if ($invPage > 1): ?><a href="index.php?action=inventario&<?php echo http_build_query(['page' => $invPage - 1, 'per' => $invPer, 'q' => $invQ, 'order' => $invOrder, 'dir' => $invDir]); ?>" class="btn-crud-cancel" style="text-decoration:none;">« Anterior</a><?php endif; ?>
+                        <?php for ($p = max(1, $invPage - 2); $p <= min($invPages, $invPage + 2); $p++): ?>
+                            <a href="index.php?action=inventario&<?php echo http_build_query(['page' => $p, 'per' => $invPer, 'q' => $invQ, 'order' => $invOrder, 'dir' => $invDir]); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo ($p === (int)$invPage) ? '' : 'opacity:.55;'; ?>"><?php echo $p; ?></a>
+                        <?php endfor; ?>
+                        <?php if ($invPage < $invPages): ?><a href="index.php?action=inventario&<?php echo http_build_query(['page' => $invPage + 1, 'per' => $invPer, 'q' => $invQ, 'order' => $invOrder, 'dir' => $invDir]); ?>" class="btn-crud-cancel" style="text-decoration:none;">Siguiente »</a><?php endif; ?>
+                        <small style="color:#a0aec0;">Pág. <?php echo (int)$invPage; ?> de <?php echo (int)$invPages; ?> · <?php echo (int)$invTotal; ?> registros (LIKE en BD)</small>
                     </div>
                 </div>
                 <?php if ($__canEdit && ($__rol === 'Administrador')): ?>
@@ -495,6 +516,20 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 });
                 if (invSearch) { invSearch.value = ''; invSearch.placeholder = 'Filtrando: stock bajo (borra para ver todo)'; }
             }
+        })();
+        // Resaltado desde la campana (?hl=ID_Producto): desplaza y parpadea la fila
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            const hl = params.get('hl');
+            if (!hl) return;
+            const tr = document.getElementById('prod-' + hl);
+            if (!tr || tr.style.display === 'none') return;
+            tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            let n = 0;
+            const flash = setInterval(function () {
+                tr.style.background = (n % 2 === 0) ? '#fefcbf' : '';
+                if (++n > 5) { clearInterval(flash); tr.style.background = ''; }
+            }, 400);
         })();
         // Modal personalizada ACIDO (inactivar/activar) - envía el form POST del botón
         let confirmFormInv = null;

@@ -46,6 +46,7 @@ if (!isset($facturas)) { $facturas = []; }
             <a href="index.php?action=catalogo" class="nav-item"><i class="fa-solid fa-store"></i><span class="sidebar-text">Catálogo</span></a>
             <a href="index.php?action=carrito" class="nav-item"><i class="fa-solid fa-cart-shopping"></i><span class="sidebar-text">Carrito<?php $n=array_sum($_SESSION['cart']??[]); if($n>0) echo " ($n)"; ?></span></a>
             <a href="index.php?action=ventas" class="nav-item active"><i class="fa-solid fa-receipt"></i><span class="sidebar-text"><?php echo $__esGest?'Ventas':'Mis compras'; ?></span></a>
+            <a href="index.php?action=pqr" class="nav-item"><i class="fa-solid fa-headset"></i><span class="sidebar-text">PQR y Ayuda</span></a>
             <?php if ($__esGest): ?>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item"><i class="fa-solid fa-boxes-stacked"></i><span class="sidebar-text">Inventario</span></a>
@@ -57,14 +58,7 @@ if (!isset($facturas)) { $facturas = []; }
                 <div class="search-bar"><input type="text" id="vSearch" placeholder="Buscar venta, cliente, factura..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
                 <div class="topbar-user">
                     <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-bell"></i>
-                        <span class="badge red">3+</span>
-                    </div>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span class="badge yellow">7</span>
-                    </div>
+                    <?php require_once __DIR__ . "/partials/stock_bell.php"; ?>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
                         <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
@@ -115,14 +109,35 @@ if (!isset($facturas)) { $facturas = []; }
                 </div>
                 <div class="crud-modern-card">
                     <div class="crud-modern-header">
-                        <i class="fa-solid fa-receipt"></i><span>Historial</span>
+                        <i class="fa-solid fa-receipt"></i><span>Historial (<?php echo (int)($vTotal ?? count($ventas)); ?>)</span>
                         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-                            <a href="index.php?action=ventas&tab=ventas" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='ventas'?'':'opacity:.6;'; ?>">Ventas (<?php echo count($ventas); ?>)</a>
-                            <a href="index.php?action=ventas&tab=pendientes" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='pendientes'?'':'opacity:.6;'; ?>">Pendientes (<?php echo count($pendientes); ?>)</a>
-                            <a href="index.php?action=ventas&tab=entregadas" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='entregadas'?'':'opacity:.6;'; ?>">Entregadas (<?php echo count($entregadas); ?>)</a>
-                            <a href="index.php?action=ventas&tab=facturas" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='facturas'?'':'opacity:.6;'; ?>">Facturas (<?php echo count($facturas); ?>)</a>
+                            <?php $vQ = $vQ ?? ''; $vDesde = $vDesde ?? ''; $vHasta = $vHasta ?? ''; $vPage = $vPage ?? 1; $vPer = $vPer ?? 10; $vOrder = $vOrder ?? 'ID_Venta'; $vDir = $vDir ?? 'DESC'; $vPages = $vPages ?? 1;
+                            $tabQs = function($tab) use ($vQ, $vDesde, $vHasta, $vPer, $vOrder, $vDir) { return 'index.php?action=ventas&' . http_build_query(['tab' => $tab, 'q' => $vQ, 'desde' => $vDesde, 'hasta' => $vHasta, 'per' => $vPer, 'order' => $vOrder, 'dir' => $vDir]); };
+                            $expQs = http_build_query(['q' => $vQ, 'desde' => $vDesde, 'hasta' => $vHasta]); ?>
+                            <a href="<?php echo $tabQs('ventas'); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='ventas'?'':'opacity:.6;'; ?>"><?php echo $__esGest ? 'Ventas' : 'Mis compras'; ?> (<?php echo (int)($vTotal ?? count($ventas)); ?>)</a>
+                            <a href="<?php echo $tabQs('pendientes'); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='pendientes'?'':'opacity:.6;'; ?>">Pendientes (<?php echo count($pendientes); ?>)</a>
+                            <a href="<?php echo $tabQs('entregadas'); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='entregadas'?'':'opacity:.6;'; ?>">Entregadas (<?php echo count($entregadas); ?>)</a>
+                            <a href="<?php echo $tabQs('facturas'); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo $tabVentas==='facturas'?'':'opacity:.6;'; ?>">Facturas (<?php echo count($facturas); ?>)</a>
                         </div>
                     </div>
+                    <form method="GET" action="index.php" style="display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;align-items:end;">
+                        <input type="hidden" name="action" value="ventas">
+                        <input type="hidden" name="tab" value="<?php echo htmlspecialchars($tabVentas); ?>">
+                        <div><label style="display:block;font-size:11px;font-weight:700;color:#4a5568;">DESDE</label><input type="date" name="desde" class="crud-input" value="<?php echo htmlspecialchars($vDesde); ?>"></div>
+                        <div><label style="display:block;font-size:11px;font-weight:700;color:#4a5568;">HASTA</label><input type="date" name="hasta" class="crud-input" value="<?php echo htmlspecialchars($vHasta); ?>"></div>
+                        <div><label style="display:block;font-size:11px;font-weight:700;color:#4a5568;">BUSCAR (LIKE)</label><input type="text" name="q" placeholder="ID, cliente, factura..." class="crud-input" style="min-width:200px;" value="<?php echo htmlspecialchars($vQ); ?>"></div>
+                        <div><label style="display:block;font-size:11px;font-weight:700;color:#4a5568;">POR PÁG</label><select name="per" class="crud-input"><?php foreach ([5,10,20,50] as $pp): ?><option value="<?php echo $pp; ?>" <?php echo ((int)$vPer === $pp) ? 'selected' : ''; ?>><?php echo $pp; ?></option><?php endforeach; ?></select></div>
+                        <button type="submit" class="btn-crud-save">Filtrar</button>
+                        <?php if ($vQ !== '' || $vDesde !== '' || $vHasta !== ''): ?><a href="index.php?action=ventas&tab=<?php echo urlencode($tabVentas); ?>" class="btn-crud-cancel" style="text-decoration:none;">Limpiar</a><?php endif; ?>
+                        <?php if ($__esGest): ?>
+                        <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                            <?php $expDesc = (int)($vTotal ?? count($ventas)) . ' ventas' . (($vDesde !== '' || $vHasta !== '') ? (' · ' . ($vDesde !== '' ? $vDesde : '...') . ' a ' . ($vHasta !== '' ? $vHasta : 'hoy')) : ' · todo') . ($vQ !== '' ? (' · "' . $vQ . '"') : ''); ?>
+                            <small style="color:#718096;" title="Los reportes exportan exactamente lo filtrado">Exportar (<?php echo htmlspecialchars($expDesc); ?>):</small>
+                            <a href="index.php?action=reporte_csv&<?php echo $expQs; ?>" class="btn-crud-save" style="text-decoration:none;" title="CSV UTF-8 con ; y fila TOTAL — <?php echo htmlspecialchars($expDesc); ?>"><i class="fa-solid fa-file-csv"></i> CSV</a>
+                            <a href="index.php?action=reporte_pdf&<?php echo $expQs; ?>" class="btn-crud-save" style="text-decoration:none;" title="PDF con resumen, tabla paginada y numeración — <?php echo htmlspecialchars($expDesc); ?>"><i class="fa-solid fa-file-pdf"></i> PDF</a>
+                        </span>
+                        <?php endif; ?>
+                    </form>
                     <?php if ($tabVentas === 'pendientes'): ?>
                     <?php
                     // RF 2.8/2.10: avance logístico. Pendiente se paga por checkout (no manual,
@@ -132,7 +147,7 @@ if (!isset($facturas)) { $facturas = []; }
                     ?>
                     <div style="overflow-x:auto;">
                         <table class="crud-table" id="ventasTable">
-                            <thead><tr><th>Pedido</th><th>Venta / Compra</th><th>Cliente</th><th>Dirección / Ciudad</th><th>Uds.</th><th>Total</th><th>Estado</th><?php if ($__esGest): ?><th style="text-align:right;">Logística</th><?php endif; ?></tr></thead>
+                            <thead><tr><th>Pedido</th><th>Venta / Compra</th><th>Cliente</th><th>Dirección / Ciudad</th><th>Uds.</th><th>Total</th><th>Entrega est.</th><th>Estado</th><?php if ($__esGest): ?><th style="text-align:right;">Logística</th><?php endif; ?></tr></thead>
                             <tbody>
                                 <?php if (!empty($pendientes)): foreach ($pendientes as $p): ?>
                                 <?php $estP = $p['Estado_Pedido']; $colP = explode(';', $badgeMap[$estP] ?? '#edf2f7;#4a5568'); $nextP = $nextMap[$estP] ?? null; ?>
@@ -143,6 +158,7 @@ if (!isset($facturas)) { $facturas = []; }
                                     <td><?php echo htmlspecialchars(($p['Direccion_Envio'] ?? '').' — '.($p['Nombre_Ciudad'] ?? '')); ?></td>
                                     <td><?php echo (int)$p['Unidades']; ?></td>
                                     <td><strong>$<?php echo number_format($p['Total'],0,',','.'); ?></strong></td>
+                                    <td style="white-space:nowrap;"><i class="fa-solid fa-truck-fast" style="color:#4e73df;"></i> <?php echo htmlspecialchars(fechaEstimada($p['Fecha_Compra'] ?? '', $p['Tipo_Envio'] ?? '')); ?></td>
                                     <td><span style="background:<?php echo $colP[0]; ?>;color:<?php echo $colP[1]; ?>;padding:4px 8px;border-radius:4px;font-weight:700;"><?php echo htmlspecialchars($estP); ?></span></td>
                                     <?php if ($__esGest): ?>
                                     <td style="text-align:right;white-space:nowrap;">
@@ -156,19 +172,19 @@ if (!isset($facturas)) { $facturas = []; }
                                         <?php elseif ($estP === 'Pendiente'): ?>
                                         <small style="color:#a0aec0;">Pendiente de pago</small>
                                         <?php endif; ?>
-                                        <?php if (in_array($estP, ['Pendiente','Pagado','Preparando'], true)): ?>
-                                        <form method="POST" action="index.php?action=ventas" style="display:inline;" onsubmit="return confirm('¿Cancelar el pedido #<?php echo $p['ID_Pedido']; ?>?');">
+                                        <?php if (in_array($estP, ['Pendiente','Pagado','Preparando'], true) && ($__rol ?? '') === 'Administrador'): ?>
+                                        <form method="POST" action="index.php?action=ventas" style="display:inline;" onsubmit="return pedirMotivoCanc(this, '<?php echo $p['ID_Pedido']; ?>');">
                                             <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                             <input type="hidden" name="pedido_id" value="<?php echo $p['ID_Pedido']; ?>">
                                             <input type="hidden" name="pedido_estado" value="Cancelado">
-                                            <button type="submit" class="btn-action-delete" title="Cancelar pedido"><i class="fa-solid fa-ban"></i></button>
+                                            <button type="submit" class="btn-action-delete" title="Cancelar pedido (pide motivo)"><i class="fa-solid fa-ban"></i></button>
                                         </form>
                                         <?php endif; ?>
                                     </td>
                                     <?php endif; ?>
                                 </tr>
                                 <?php endforeach; else: ?>
-                                <tr><td colspan="8" style="text-align:center;color:#a0aec0;padding:40px;font-style:italic;">Sin ventas pendientes por entregar.</td></tr>
+                                <tr><td colspan="<?php echo $__esGest ? 9 : 8; ?>" style="text-align:center;color:#a0aec0;padding:40px;font-style:italic;">Sin ventas pendientes por entregar.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -215,20 +231,22 @@ if (!isset($facturas)) { $facturas = []; }
                         </table>
                     </div>
                     <?php else: ?>
+                    <?php $vArrow = function($col) use ($vOrder, $vDir) { return ($vOrder === $col) ? ($vDir === 'ASC' ? ' ▲' : ' ▼') : ''; };
+                    $vLink = function($col) use ($tabVentas, $vQ, $vDesde, $vHasta, $vPer, $vOrder, $vDir) { $nd = ($vOrder === $col && $vDir === 'DESC') ? 'ASC' : 'DESC'; return 'index.php?action=ventas&' . http_build_query(['tab' => $tabVentas, 'page' => 1, 'per' => $vPer, 'q' => $vQ, 'desde' => $vDesde, 'hasta' => $vHasta, 'order' => $col, 'dir' => $nd]); }; ?>
                     <div style="overflow-x:auto;">
                         <table class="crud-table" id="ventasTable">
-                            <thead><tr><th>ID Venta</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Pago</th><th>Factura</th><th>Detalle</th></tr></thead>
+                            <thead><tr><th><a href="<?php echo $vLink('ID_Venta'); ?>" style="color:inherit;text-decoration:none;">ID Venta<?php echo $vArrow('ID_Venta'); ?></a></th><th><a href="<?php echo $vLink('Fecha_Venta'); ?>" style="color:inherit;text-decoration:none;">Fecha<?php echo $vArrow('Fecha_Venta'); ?></a></th><th>Cliente</th><th>Items</th><th><a href="<?php echo $vLink('Total'); ?>" style="color:inherit;text-decoration:none;">Total<?php echo $vArrow('Total'); ?></a></th><th>Pago</th><th>Factura</th><th>Detalle</th></tr></thead>
                             <tbody>
                                 <?php if (!empty($ventas)): ?>
                                     <?php foreach ($ventas as $v): ?>
                                     <tr>
-                                        <td style="font-weight:bold;">#<?php echo $v['ID_Venta']; ?></td>
-                                        <td><?php echo htmlspecialchars($v['Fecha_Venta']); ?></td>
+                                        <td style="font-weight:bold;white-space:nowrap;">#<?php echo $v['ID_Venta']; ?></td>
+                                        <td style="white-space:nowrap;"><?php $fv = explode(' ', (string)$v['Fecha_Venta']); echo htmlspecialchars($fv[0]); if (isset($fv[1])) echo '<br><small style="color:#a0aec0;">' . htmlspecialchars(substr($fv[1], 0, 5)) . '</small>'; ?></td>
                                         <td><?php echo htmlspecialchars($v['ClienteEmail'] ?? ('Cli '.$v['ID_Cliente'])); ?></td>
                                         <td><?php echo (int)$v['Items']; ?></td>
                                         <td><strong>$<?php echo number_format($v['Total'],0,',','.'); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($v['Metodo'] ?? '-'); ?><?php if (!empty($v['Entidad'])) echo ' · ' . htmlspecialchars($v['Entidad']); ?></td>
-                                        <td><code style="background:#edf2f7;padding:4px 8px;border-radius:4px;"><?php echo htmlspecialchars($v['Factura'] ?? '—'); ?></code></td>
+                                        <td><?php $metV = trim((string)($v['Metodo'] ?? '-')); $entV = trim((string)($v['Entidad'] ?? '')); echo htmlspecialchars($metV); if ($entV !== '' && $entV !== '-' && strcasecmp($entV, $metV) !== 0) echo ' · ' . htmlspecialchars($entV); ?></td>
+                                        <td><code style="background:#edf2f7;padding:4px 8px;border-radius:4px;white-space:nowrap;"><?php echo htmlspecialchars($v['Factura'] ?? '—'); ?></code></td>
                                         <td><button type="button" class="btn-action-edit btn-detalle" data-id="<?php echo $v['ID_Venta']; ?>" title="Ver productos"><i class="fa-solid fa-eye"></i></button></td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -238,6 +256,14 @@ if (!isset($facturas)) { $facturas = []; }
                             </tbody>
                         </table>
                     </div>
+                    <div style="display:flex;gap:6px;align-items:center;justify-content:center;padding:14px;flex-wrap:wrap;">
+                        <?php if ($vPage > 1): ?><a href="index.php?action=ventas&<?php echo http_build_query(['tab' => 'ventas', 'page' => $vPage - 1, 'per' => $vPer, 'q' => $vQ, 'desde' => $vDesde, 'hasta' => $vHasta, 'order' => $vOrder, 'dir' => $vDir]); ?>" class="btn-crud-cancel" style="text-decoration:none;">« Anterior</a><?php endif; ?>
+                        <?php for ($p = max(1, $vPage - 2); $p <= min($vPages, $vPage + 2); $p++): ?>
+                            <a href="index.php?action=ventas&<?php echo http_build_query(['tab' => 'ventas', 'page' => $p, 'per' => $vPer, 'q' => $vQ, 'desde' => $vDesde, 'hasta' => $vHasta, 'order' => $vOrder, 'dir' => $vDir]); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo ($p === (int)$vPage) ? '' : 'opacity:.55;'; ?>"><?php echo $p; ?></a>
+                        <?php endfor; ?>
+                        <?php if ($vPage < $vPages): ?><a href="index.php?action=ventas&<?php echo http_build_query(['tab' => 'ventas', 'page' => $vPage + 1, 'per' => $vPer, 'q' => $vQ, 'desde' => $vDesde, 'hasta' => $vHasta, 'order' => $vOrder, 'dir' => $vDir]); ?>" class="btn-crud-cancel" style="text-decoration:none;">Siguiente »</a><?php endif; ?>
+                        <small style="color:#a0aec0;">Pág. <?php echo (int)$vPage; ?> de <?php echo (int)$vPages; ?> · <?php echo (int)$vTotal; ?> ventas (LIKE + fechas en BD)</small>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -245,6 +271,20 @@ if (!isset($facturas)) { $facturas = []; }
     </div>
     <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
+        // RF 4.3: cancelar exige motivo obligatorio (mínimo 5 caracteres)
+        function pedirMotivoCanc(form, idPed) {
+            var m = prompt('Motivo de cancelación del pedido #' + idPed + ' (obligatorio, mínimo 5 caracteres):', '');
+            if (m === null) return false;
+            m = m.trim();
+            if (m.length < 5) {
+                window.acidoToast('Indica el motivo (mínimo 5 caracteres).', 'error');
+                return false;
+            }
+            var h = document.createElement('input');
+            h.type = 'hidden'; h.name = 'motivo'; h.value = m;
+            form.appendChild(h);
+            return true;
+        }
         const s=document.getElementById('vSearch');
         if(s)s.addEventListener('input',function(){
             const q=this.value.toLowerCase();
@@ -267,7 +307,20 @@ if (!isset($facturas)) { $facturas = []; }
                             const dv = document.createElement('div'); dv.textContent = it.Nombre_Producto || '';
                             return '<li>' + dv.innerHTML + ' × ' + it.Cantidad + ' — $' + Number(it.Precio_Venta_Historico).toLocaleString('es-CO') + '</li>';
                         }).join('');
-                        det.innerHTML = '<td colspan="8"><ul style="margin:4px 0;padding-left:18px;">' + lis + '</ul></td>';
+                        let ficha = '';
+                        if (d.cliente) {
+                            const c = d.cliente;
+                            const div = document.createElement('div');
+                            const nom = ((c.Nombres || '') + ' ' + (c.Apellidos || '')).trim();
+                            div.textContent = nom; const nomH = div.innerHTML;
+                            const div2 = document.createElement('div'); div2.textContent = c.Seudonimo || c.Email || '';
+                            ficha = '<div style="background:#edf2f7;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:12px;">'
+                                + '<strong>Comprador:</strong> ' + nomH
+                                + ' · Doc: ' + (c.Documento || '—')
+                                + ' · Tel: ' + (c.Telefono || '—')
+                                + ' · Usuario: ' + div2.innerHTML + '</div>';
+                        }
+                        det.innerHTML = '<td colspan="8">' + ficha + '<ul style="margin:4px 0;padding-left:18px;">' + lis + '</ul></td>';
                     } else {
                         det.innerHTML = '<td colspan="8" style="color:#a0aec0;">Sin detalle disponible.</td>';
                     }
@@ -277,5 +330,6 @@ if (!isset($facturas)) { $facturas = []; }
             });
         });
     </script>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

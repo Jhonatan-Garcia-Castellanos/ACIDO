@@ -351,12 +351,48 @@ class Usuario
     // =========================================================================
     // CRUD POR ID (MVC: la vista no toca la BD) - Esquema DB.sql
     // =========================================================================
-    public function obtenerTodos()
+    public function contarUsuarios($q = '')
     {
         try {
+            $q = trim((string)$q);
+            $where = '';
+            $params = [];
+            if ($q !== '') {
+                $where = "WHERE (u.Email LIKE :q1 OR u.Seudonimo LIKE :q2 OR u.Rol LIKE :q3 OR c.Documento LIKE :q4 OR c.Nombres LIKE :q5 OR c.Apellidos LIKE :q6)";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%'; $params[':q4'] = '%' . $q . '%'; $params[':q5'] = '%' . $q . '%'; $params[':q6'] = '%' . $q . '%';
+            }
+            $stmt = $this->db->prepare("SELECT COUNT(*) AS c FROM usuario u LEFT JOIN cliente c ON c.ID_Cliente = u.ID_Cliente $where");
+            $stmt->execute($params);
+            $r = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($r['c'] ?? 0);
+        } catch (PDOException $e) {
+            error_log("Usuario::contarUsuarios: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    public function obtenerTodos($page = 1, $per = 10, $q = '', $order = 'ID_Usuario', $dir = 'DESC')
+    {
+        try {
+            $page = max(1, (int)$page);
+            $per = (int)$per;
+            if (!in_array($per, [5, 10, 20, 50], true)) $per = 10;
+            $off = ($page - 1) * $per;
+            $map = ['ID_Usuario' => 'u.ID_Usuario', 'Email' => 'u.Email', 'Rol' => 'u.Rol'];
+            $orderSql = $map[$order] ?? 'u.ID_Usuario';
+            $dir = (strtoupper($dir) === 'ASC') ? 'ASC' : 'DESC';
+            $q = trim((string)$q);
+            $where = '';
+            $params = [];
+            if ($q !== '') {
+                $where = "WHERE (u.Email LIKE :q1 OR u.Seudonimo LIKE :q2 OR u.Rol LIKE :q3 OR c.Documento LIKE :q4 OR c.Nombres LIKE :q5 OR c.Apellidos LIKE :q6)";
+                $params[':q1'] = '%' . $q . '%'; $params[':q2'] = '%' . $q . '%'; $params[':q3'] = '%' . $q . '%'; $params[':q4'] = '%' . $q . '%'; $params[':q5'] = '%' . $q . '%'; $params[':q6'] = '%' . $q . '%';
+            }
             // No traer Password_Hash por seguridad. Incluye inactivos para poder reactivar (legal: sin borrado).
             // LEFT JOIN cliente para mostrar/editar datos personales en el crud.
-            $stmt = $this->db->query("SELECT u.ID_Usuario, u.Email, u.Rol, u.deleted_at, (u.deleted_at IS NULL) AS Activo, u.ID_Usuario AS id, u.Email AS email, u.Rol AS rol, c.Documento, c.Telefono, c.Nombres AS ClienteNombres, c.Apellidos AS ClienteApellidos FROM usuario u LEFT JOIN cliente c ON c.ID_Cliente = u.ID_Cliente ORDER BY u.ID_Usuario DESC LIMIT 200");
+            $sql = "SELECT u.ID_Usuario, u.Email, u.Rol, u.deleted_at, (u.deleted_at IS NULL) AS Activo, u.ID_Usuario AS id, u.Email AS email, u.Rol AS rol, c.Documento, c.Telefono, c.Nombres AS ClienteNombres, c.Apellidos AS ClienteApellidos FROM usuario u LEFT JOIN cliente c ON c.ID_Cliente = u.ID_Cliente $where ORDER BY $orderSql $dir LIMIT $per OFFSET $off";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$r) {
                 $r = $this->mapearFila($r);

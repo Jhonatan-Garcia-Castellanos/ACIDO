@@ -103,6 +103,10 @@ if (!isset($registros)) {
                 <i class="fa-solid fa-receipt"></i>
                 <span class="sidebar-text">Ventas</span>
             </a>
+            <a href="index.php?action=pqr" class="nav-item">
+                <i class="fa-solid fa-headset"></i>
+                <span class="sidebar-text">PQR y Ayuda</span>
+            </a>
             <div class="sidebar-heading sidebar-text" style="margin-top:12px;">GESTIÓN</div>
             <a href="index.php?action=inventario" class="nav-item">
                 <i class="fa-solid fa-boxes-stacked"></i>
@@ -127,14 +131,7 @@ if (!isset($registros)) {
 
                 <div class="topbar-user">
                     <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-bell"></i>
-                        <span class="badge red">3+</span>
-                    </div>
-                    <div class="icon-badge">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span class="badge yellow">7</span>
-                    </div>
+                    <?php require_once __DIR__ . "/partials/stock_bell.php"; ?>
                     <a href="index.php?action=carrito" class="icon-badge" title="Mi carrito" style="text-decoration:none;color:inherit;">
                         <i class="fa-solid fa-cart-shopping" style="color:#fff;"></i>
                         <?php $ncartTop=array_sum($_SESSION['cart']??[]); if($ncartTop>0): ?><span class="badge red"><?php echo $ncartTop; ?></span><?php endif; ?>
@@ -269,19 +266,31 @@ if (!isset($registros)) {
                     <div class="crud-modern-card">
                         <div class="crud-modern-header">
                             <i class="fa-solid fa-table-list"></i>
-                            <span>Usuarios Registrados en el Sistema</span>
-                            <input type="text" id="crudSearch" placeholder="Buscar correo, nombre, documento..." class="crud-input" style="margin-left:auto;max-width:260px;">
+                            <span>Usuarios Registrados (<?php echo (int)($crudTotal ?? count($registros)); ?>)</span>
                         </div>
+                        <?php $crudPage = $crudPage ?? 1; $crudPer = $crudPer ?? 10; $crudQ = $crudQ ?? ''; $crudOrder = $crudOrder ?? 'ID_Usuario'; $crudDir = $crudDir ?? 'DESC'; $crudPages = $crudPages ?? 1;
+                        $crudArrow = function($col) use ($crudOrder, $crudDir) { return ($crudOrder === $col) ? ($crudDir === 'ASC' ? ' ▲' : ' ▼') : ''; };
+                        $crudLink = function($col) use ($crudOrder, $crudDir, $crudQ, $crudPer) { $nd = ($crudOrder === $col && $crudDir === 'DESC') ? 'ASC' : 'DESC'; return 'index.php?action=crud&' . http_build_query(['page' => 1, 'per' => $crudPer, 'q' => $crudQ, 'order' => $col, 'dir' => $nd]); }; ?>
+                        <form method="GET" action="index.php" style="display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;align-items:center;">
+                            <input type="hidden" name="action" value="crud">
+                            <input type="text" name="q" placeholder="Buscar correo, nombre, documento... (LIKE)" class="crud-input" style="max-width:260px;" value="<?php echo htmlspecialchars($crudQ); ?>">
+                            <select name="per" class="crud-input" style="max-width:90px;" onchange="this.form.submit()">
+                                <?php foreach ([5,10,20,50] as $pp): ?><option value="<?php echo $pp; ?>" <?php echo ((int)$crudPer === $pp) ? 'selected' : ''; ?>><?php echo $pp; ?> / pág</option><?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn-crud-save">Buscar</button>
+                            <?php if ($crudQ !== ''): ?><a href="index.php?action=crud" class="btn-crud-cancel" style="text-decoration:none;">Limpiar</a><?php endif; ?>
+                            <input type="text" id="crudSearch" placeholder="Filtrar en página..." class="crud-input" style="margin-left:auto;max-width:200px;">
+                        </form>
                         <div style="overflow-x: auto;">
                             <table class="crud-table" id="crudTable">
                                 <thead>
                                     <tr>
-                                        <th><b>ID_Usuario</b></th>
-                                        <th><b>Correo (Email)</b></th>
+                                        <th><a href="<?php echo $crudLink('ID_Usuario'); ?>" style="color:inherit;text-decoration:none;"><b>ID_Usuario<?php echo $crudArrow('ID_Usuario'); ?></b></a></th>
+                                        <th><a href="<?php echo $crudLink('Email'); ?>" style="color:inherit;text-decoration:none;"><b>Correo (Email)<?php echo $crudArrow('Email'); ?></b></a></th>
                                         <th><b>Nombre</b></th>
                                         <th><b>Documento</b></th>
                                         <th><b>Teléfono</b></th>
-                                        <th><b>Rol</b></th>
+                                        <th><a href="<?php echo $crudLink('Rol'); ?>" style="color:inherit;text-decoration:none;"><b>Rol<?php echo $crudArrow('Rol'); ?></b></a></th>
                                         <th><b>Estado</b></th>
                                         <th style="text-align: right;"><b>Acciones</b></th>
                                     </tr>
@@ -372,6 +381,14 @@ if (!isset($registros)) {
                                     <?php endif; ?>
                                 </tbody>
                             </table>
+                        </div>
+                        <div style="display:flex;gap:6px;align-items:center;justify-content:center;padding:14px;flex-wrap:wrap;">
+                            <?php if ($crudPage > 1): ?><a href="index.php?action=crud&<?php echo http_build_query(['page' => $crudPage - 1, 'per' => $crudPer, 'q' => $crudQ, 'order' => $crudOrder, 'dir' => $crudDir]); ?>" class="btn-crud-cancel" style="text-decoration:none;">« Anterior</a><?php endif; ?>
+                            <?php for ($p = max(1, $crudPage - 2); $p <= min($crudPages, $crudPage + 2); $p++): ?>
+                                <a href="index.php?action=crud&<?php echo http_build_query(['page' => $p, 'per' => $crudPer, 'q' => $crudQ, 'order' => $crudOrder, 'dir' => $crudDir]); ?>" class="btn-crud-save" style="text-decoration:none;<?php echo ($p === (int)$crudPage) ? '' : 'opacity:.55;'; ?>"><?php echo $p; ?></a>
+                            <?php endfor; ?>
+                            <?php if ($crudPage < $crudPages): ?><a href="index.php?action=crud&<?php echo http_build_query(['page' => $crudPage + 1, 'per' => $crudPer, 'q' => $crudQ, 'order' => $crudOrder, 'dir' => $crudDir]); ?>" class="btn-crud-cancel" style="text-decoration:none;">Siguiente »</a><?php endif; ?>
+                            <small style="color:#a0aec0;">Pág. <?php echo (int)$crudPage; ?> de <?php echo (int)$crudPages; ?> · <?php echo (int)$crudTotal; ?> registros (LIKE en BD)</small>
                         </div>
                     </div>
 
@@ -469,6 +486,7 @@ if (!isset($registros)) {
             </div>
         </div>
     </div>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
 </body>
 
 </html>
