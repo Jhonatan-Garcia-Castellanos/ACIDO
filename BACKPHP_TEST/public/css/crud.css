@@ -176,3 +176,104 @@
     .pago-campos { grid-template-columns: 1fr; }
     .pago-campo.ancho-2-3 { grid-column: span 1; }
 }
+
+/* Botón Comprar ahora (RF 5.5) */
+.btn-buy-now {
+    background: linear-gradient(135deg, #f6ad55, #ed8936);
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .2s;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.btn-buy-now:hover {
+    background: linear-gradient(135deg, #ed8936, #dd6b20);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(237,137,54,.35);
+}
+
+/* Checkout steps */
+.checkout-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 24px;
+    padding: 0 4px;
+}
+.checkout-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #a0aec0;
+}
+.checkout-step.active {
+    color: #004BA0;
+}
+.checkout-step.done {
+    color: #38a169;
+}
+.checkout-step .step-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 13px;
+    background: #e2e8f0;
+    color: #a0aec0;
+    flex-shrink: 0;
+}
+.checkout-step.active .step-num {
+    background: #004BA0;
+    color: #fff;
+}
+.checkout-step.done .step-num {
+    background: #38a169;
+    color: #fff;
+}
+.checkout-step-divider {
+    flex: 1;
+    height: 2px;
+    background: #e2e8f0;
+    margin: 0 10px;
+    min-width: 20px;
+}
+.checkout-step-divider.done {
+    background: #38a169;
+}
+
+/* Formulario de envío */
+.envio-campos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.envio-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.envio-campo label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.envio-campo.ancho-completo {
+    grid-column: span 2;
+}
+@media (max-width: 620px) {
+    .envio-campos { grid-template-columns: 1fr; }
+    .envio-campo.ancho-completo { grid-column: span 1; }
+}

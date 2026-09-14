@@ -142,6 +142,13 @@ if (!isset($items)) { $items = []; }
                                 <input type="number" name="qty" value="1" min="1" max="10" class="crud-input" style="width:65px;">
                                 <button type="submit" class="btn-crud-save" style="flex:1;"><i class="fa-solid fa-cart-plus"></i> Agregar</button>
                             </form>
+                            <form action="index.php?action=catalogo" method="POST" style="display:flex;gap:8px;padding-top:4px;">
+                                <input type="hidden" name="cart_action" value="buy_now">
+                                <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
+                                <input type="hidden" name="qty" value="1">
+                                <button type="submit" class="btn-buy-now" style="flex:1;"><i class="fa-solid fa-bolt"></i> Comprar ahora</button>
+                            </form>
                         </div>
                     </div>
                     <?php endforeach; ?>
