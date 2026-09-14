@@ -10,6 +10,8 @@ if (!isset($_SESSION["user"])) {
 $__rol = $_SESSION["user"]["Rol"] ?? $_SESSION["user"]["rol"] ?? 'Cliente';
 if (!isset($cartData)) { $cartData = ['items'=>[], 'total'=>0]; }
 if (!isset($metodos)) { $metodos = []; }
+if (!isset($checkoutStep)) { $checkoutStep = 1; }
+if (!isset($shipping)) { $shipping = null; }
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -96,6 +98,26 @@ if (!isset($metodos)) { $metodos = []; }
                         ¡Compra exitosa! Venta #<?php echo htmlspecialchars($_GET['ok']); ?><?php if(isset($_GET['fac'])) echo " · Factura ".htmlspecialchars($_GET['fac']); ?>. <a href="index.php?action=ventas">Ver en ventas</a>
                     </div>
                 <?php endif; ?>
+
+                <?php if (!isset($_GET['ok'])): ?>
+                <div class="checkout-steps">
+                    <div class="checkout-step <?php echo $checkoutStep >= 1 ? ($checkoutStep > 1 ? 'done' : 'active') : ''; ?>">
+                        <span class="step-num"><?php echo $checkoutStep > 1 ? '<i class="fa-solid fa-check" style="font-size:13px;"></i>' : '1'; ?></span>
+                        <span>Mi carrito</span>
+                    </div>
+                    <div class="checkout-step-divider <?php echo $checkoutStep > 1 ? 'done' : ''; ?>"></div>
+                    <div class="checkout-step <?php echo $checkoutStep >= 2 ? ($checkoutStep > 2 ? 'done' : 'active') : ''; ?>">
+                        <span class="step-num"><?php echo $checkoutStep > 2 ? '<i class="fa-solid fa-check" style="font-size:13px;"></i>' : '2'; ?></span>
+                        <span>Datos de envío</span>
+                    </div>
+                    <div class="checkout-step-divider <?php echo $checkoutStep > 2 ? 'done' : ''; ?>"></div>
+                    <div class="checkout-step <?php echo $checkoutStep >= 3 ? 'active' : ''; ?>">
+                        <span class="step-num">3</span>
+                        <span>Pago</span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div class="crud-modern-card">
                     <div class="crud-modern-header"><i class="fa-solid fa-cart-shopping"></i><span>Productos en el carrito (<?php echo count($cartData['items']); ?>)</span></div>
                     <div style="overflow-x:auto;">
@@ -108,6 +130,7 @@ if (!isset($metodos)) { $metodos = []; }
                                         <td><strong><?php echo htmlspecialchars($it['Nombre_Producto']); ?></strong><br><small style="color:#a0aec0;">Stock: <?php echo (int)$it['Stock_Actual']; ?><?php if((int)$it['Activo']!==1) echo " · INACTIVO"; ?></small></td>
                                         <td>$<?php echo number_format($it['Precio_Actual'],0,',','.'); ?></td>
                                         <td>
+                                            <?php if ($checkoutStep === 1): ?>
                                             <form action="index.php?action=carrito" method="POST" class="ajax-cart-update" style="display:flex;gap:6px;align-items:center;">
                                                 <input type="hidden" name="cart_action" value="update">
                                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
@@ -115,15 +138,20 @@ if (!isset($metodos)) { $metodos = []; }
                                                 <input type="number" name="qty" value="<?php echo $it['cantidad']; ?>" min="1" max="10" class="crud-input qty-input" data-id="<?php echo $it['ID_Producto']; ?>" data-price="<?php echo $it['Precio_Actual']; ?>" style="width:70px;">
                                                 <button type="submit" class="btn-action-edit">Actualizar</button>
                                             </form>
+                                            <?php else: ?>
+                                            <span style="font-weight:700;"><?php echo (int)$it['cantidad']; ?></span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="row-subtotal" data-id="<?php echo $it['ID_Producto']; ?>"><strong>$<?php echo number_format($it['subtotal'],0,',','.'); ?></strong></td>
                                         <td style="text-align:right;">
+                                            <?php if ($checkoutStep === 1): ?>
                                             <form action="index.php?action=carrito" method="POST" class="ajax-cart-remove" data-id="<?php echo $it['ID_Producto']; ?>" style="display:inline;">
                                                 <input type="hidden" name="cart_action" value="remove">
                                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
                                                 <button type="submit" class="btn-action-delete"><i class="fa-solid fa-trash"></i> Quitar</button>
                                             </form>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -134,7 +162,78 @@ if (!isset($metodos)) { $metodos = []; }
                         </table>
                     </div>
                 </div>
+
                 <?php if (!empty($cartData['items'])): ?>
+
+                <?php if ($checkoutStep === 1): ?>
+                <div class="crud-modern-card">
+                    <div class="crud-modern-header"><i class="fa-solid fa-arrow-right"></i><span>Continuar con la compra</span></div>
+                    <div class="crud-form-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                        <div>
+                            <div style="font-size:20px;font-weight:800;">Total: $<?php echo number_format($cartData['total'],0,',','.'); ?></div>
+                            <small style="color:#a0aec0;">Revisa tus productos y luego completa los datos de envío.</small>
+                        </div>
+                        <a href="index.php?action=carrito&step=2" class="btn-crud-save" style="text-decoration:none;text-align:center;"><i class="fa-solid fa-truck"></i> Continuar al envío</a>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($checkoutStep === 2): ?>
+                <div class="crud-modern-card">
+                    <div class="crud-modern-header"><i class="fa-solid fa-truck"></i><span>Datos de envío</span></div>
+                    <div class="crud-form-body">
+                        <small style="color:#a0aec0;display:block;margin-bottom:16px;">Completa los datos para hacer llegar tu pedido a domicilio.</small>
+                        <form action="index.php?action=carrito" method="POST" id="shippingForm" autocomplete="off">
+                            <input type="hidden" name="cart_action" value="save_shipping">
+                            <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                            <div class="envio-campos">
+                                <div class="envio-campo">
+                                    <label>Nombres</label>
+                                    <input type="text" name="nombres" class="crud-input" placeholder="Ej. Juan Carlos" required maxlength="100" value="<?php echo htmlspecialchars($shipping['nombres'] ?? ''); ?>">
+                                </div>
+                                <div class="envio-campo">
+                                    <label>Apellidos</label>
+                                    <input type="text" name="apellidos" class="crud-input" placeholder="Ej. Pérez López" required maxlength="100" value="<?php echo htmlspecialchars($shipping['apellidos'] ?? ''); ?>">
+                                </div>
+                                <div class="envio-campo">
+                                    <label>DNI / Cédula</label>
+                                    <input type="text" name="dni" class="crud-input" placeholder="Ej. 1012345678" required maxlength="20" inputmode="numeric" value="<?php echo htmlspecialchars($shipping['dni'] ?? ''); ?>">
+                                </div>
+                                <div class="envio-campo">
+                                    <label>Teléfono</label>
+                                    <input type="text" name="telefono" class="crud-input" placeholder="Ej. 3001234567" required maxlength="15" inputmode="tel" value="<?php echo htmlspecialchars($shipping['telefono'] ?? ''); ?>">
+                                </div>
+                                <div class="envio-campo ancho-completo">
+                                    <label>Dirección de envío</label>
+                                    <input type="text" name="direccion" class="crud-input" placeholder="Calle, número, barrio, ciudad" required maxlength="200" value="<?php echo htmlspecialchars($shipping['direccion'] ?? ''); ?>">
+                                </div>
+                                <div class="envio-campo ancho-completo">
+                                    <label>Correo electrónico</label>
+                                    <input type="email" name="correo" class="crud-input" placeholder="tu@correo.com" required maxlength="120" value="<?php echo htmlspecialchars($shipping['correo'] ?? ''); ?>">
+                                </div>
+                            </div>
+                            <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <a href="index.php?action=carrito" style="color:#4a5568;font-weight:700;font-size:13px;text-decoration:none;padding:8px 12px;"><i class="fa-solid fa-arrow-left"></i> Volver al carrito</a>
+                                <button type="submit" class="btn-crud-save"><i class="fa-solid fa-arrow-right"></i> Continuar al pago</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($checkoutStep === 3): ?>
+                <div class="crud-modern-card">
+                    <div class="crud-modern-header"><i class="fa-solid fa-truck"></i><span>Resumen de envío</span></div>
+                    <div class="crud-form-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                        <div style="font-size:13px;line-height:1.7;">
+                            <strong><?php echo htmlspecialchars(($shipping['nombres'] ?? '') . ' ' . ($shipping['apellidos'] ?? '')); ?></strong><br>
+                            DNI: <?php echo htmlspecialchars($shipping['dni'] ?? '—'); ?> · Tel: <?php echo htmlspecialchars($shipping['telefono'] ?? '—'); ?><br>
+                            <i class="fa-solid fa-location-dot"></i> <?php echo htmlspecialchars($shipping['direccion'] ?? '—'); ?><br>
+                            <i class="fa-solid fa-envelope"></i> <?php echo htmlspecialchars($shipping['correo'] ?? '—'); ?>
+                        </div>
+                        <a href="index.php?action=carrito&step=2" style="color:#4a5568;font-weight:700;font-size:12px;text-decoration:none;"><i class="fa-solid fa-pen"></i> Editar</a>
+                    </div>
+                </div>
                 <div class="crud-modern-card">
                     <div class="crud-modern-header"><i class="fa-solid fa-cash-register"></i><span>Finalizar compra</span></div>
                     <div class="crud-form-body">
@@ -189,6 +288,7 @@ if (!isset($metodos)) { $metodos = []; }
                                 <small style="color:#a0aec0;">La confirmación se envía a tu aplicación bancaria.</small>
                             </div>
                             <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <a href="index.php?action=carrito&step=2" style="color:#4a5568;font-weight:700;font-size:13px;text-decoration:none;padding:8px 12px;"><i class="fa-solid fa-arrow-left"></i> Volver</a>
                                 <button type="submit" class="btn-crud-save"><i class="fa-solid fa-lock"></i> Confirmar y pagar</button>
                                 <small style="color:#a0aec0;">Se crea venta + detalle + pago + factura automática. Stock se descuenta al pagar.</small>
                             </div>
@@ -196,13 +296,14 @@ if (!isset($metodos)) { $metodos = []; }
                     </div>
                 </div>
                 <?php endif; ?>
+
+                <?php endif; ?>
             </div>
         </main>
     </div>
     <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
         const fmtMoney = (v) => '$' + Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
-        // Subtotal en vivo al cambiar cantidad (antes de guardar)
         document.querySelectorAll('.qty-input').forEach(inp => {
             inp.addEventListener('input', () => {
                 const q = Math.max(1, Math.min(10, parseInt(inp.value, 10) || 1));
@@ -225,7 +326,6 @@ if (!isset($metodos)) { $metodos = []; }
                 if (inp) inp.value = d.items[id].cantidad;
             });
         }
-        // Actualizar cantidad sin recargar
         document.querySelectorAll('.ajax-cart-update').forEach(f => {
             f.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -235,7 +335,6 @@ if (!isset($metodos)) { $metodos = []; }
                 } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
             });
         });
-        // Quitar producto con animación, sin recargar
         document.querySelectorAll('.ajax-cart-remove').forEach(f => {
             f.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -252,15 +351,12 @@ if (!isset($metodos)) { $metodos = []; }
                 } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
             });
         });
-        // ---- Selector de medios de pago con logos ----
         (function(){
             const radios = document.querySelectorAll('.medio-radio');
             const cajTarjeta = document.getElementById('campoTarjeta');
             const cajCuenta = document.getElementById('campoCuenta');
             const entidadInput = document.getElementById('entidadInput');
             const numTarjeta = document.getElementById('numeroTarjeta');
-            // Refleja al backend (VentaController::checkout): tarjeta exige número+Luhn,
-            // cuenta/celular solo si el método tiene logo; el resto no pide nada.
             function actualizar() {
                 const sel = document.querySelector('.medio-radio:checked');
                 if (!sel) return;

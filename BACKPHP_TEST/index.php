@@ -774,6 +774,13 @@ if (isset($_GET["action"])) {
             header("Location: index.php?action=catalogo");
             exit();
         }
+        // RF 5.5 Comprar ahora: agrega 1 unidad y redirige al carrito (paso envío)
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"]) && $_POST["cart_action"] === "buy_now") {
+            checkCsrf();
+            $ventaController->agregar($_POST["id"] ?? '', 1);
+            header("Location: index.php?action=carrito&step=2");
+            exit();
+        }
         $items = $productoController->catalogo();
         require_once "view/catalogo.php";
         exit();
@@ -814,6 +821,19 @@ if (isset($_GET["action"])) {
                 header("Location: index.php?action=carrito");
                 exit();
             }
+            // Guardar datos de envío y avanzar al paso de pago
+            if ($_POST["cart_action"] === "save_shipping") {
+                $_SESSION['shipping'] = [
+                    'nombres'   => trim($_POST['nombres'] ?? ''),
+                    'apellidos' => trim($_POST['apellidos'] ?? ''),
+                    'dni'       => trim($_POST['dni'] ?? ''),
+                    'direccion' => trim($_POST['direccion'] ?? ''),
+                    'telefono'  => trim($_POST['telefono'] ?? ''),
+                    'correo'    => trim($_POST['correo'] ?? ''),
+                ];
+                header("Location: index.php?action=carrito&step=3");
+                exit();
+            }
             if ($_POST["cart_action"] === "checkout") {
                 $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
                 $detallePago = [
@@ -823,17 +843,20 @@ if (isset($_GET["action"])) {
                 ];
                 $res = $ventaController->checkout($uid, $_POST["id_metodo"] ?? '', $detallePago);
                 if (isset($res['ID_Venta'])) {
+                    unset($_SESSION['shipping']);
                     $url = "index.php?action=carrito&ok=" . $res['ID_Venta'];
                     if (!empty($res['factura'])) $url .= "&fac=" . urlencode($res['factura']);
                     header("Location: " . $url);
                     exit();
                 }
-                header("Location: index.php?action=carrito&error=" . urlencode($res['error'] ?? 'No se pudo comprar'));
+                header("Location: index.php?action=carrito&step=3&error=" . urlencode($res['error'] ?? 'No se pudo comprar'));
                 exit();
             }
         }
         $cartData = $ventaController->detalle();
         $metodos = $ventaController->metodos();
+        $checkoutStep = isset($_GET['step']) ? max(1, min(3, (int)$_GET['step'])) : 1;
+        $shipping = $_SESSION['shipping'] ?? null;
         require_once "view/carrito.php";
         exit();
     }
