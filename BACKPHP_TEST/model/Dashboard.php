@@ -39,7 +39,8 @@ class Dashboard
                 $stockBajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE deleted_at IS NULL AND Stock_Actual < 10")->fetch(PDO::FETCH_ASSOC);
             }
         } catch (PDOException $e) {
-            $pend = ['c' => 0]; $stockBajo = ['c' => 0];
+            $pend = ['c' => 0];
+            $stockBajo = ['c' => 0];
         }
         return [
             'ganancias_mes' => (float)($mes['total'] ?? 0),
@@ -66,8 +67,9 @@ class Dashboard
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $map = [];
             foreach ($rows as $r) $map[$r['ym']] = (float)$r['total'];
-            $mesesEs = [1=>'Ene',2=>'Feb',3=>'Mar',4=>'Abr',5=>'May',6=>'Jun',7=>'Jul',8=>'Ago',9=>'Sep',10=>'Oct',11=>'Nov',12=>'Dic'];
-            $labels = []; $data = [];
+            $mesesEs = [1 => 'Ene', 2 => 'Feb', 3 => 'Mar', 4 => 'Abr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Ago', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dic'];
+            $labels = [];
+            $data = [];
             for ($i = $n - 1; $i >= 0; $i--) {
                 $ts = strtotime("first day of -$i months");
                 $ym = date('Y-m', $ts);
@@ -91,8 +93,12 @@ class Dashboard
                                         JOIN producto p ON dv.ID_Producto = p.ID_Producto
                                         JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
                                         GROUP BY c.ID_Categoria, c.Nombre_Categoria ORDER BY total DESC LIMIT $limit")->fetchAll(PDO::FETCH_ASSOC);
-            $labels = []; $data = [];
-            foreach ($rows as $r) { $labels[] = $r['Nombre_Categoria']; $data[] = (float)$r['total']; }
+            $labels = [];
+            $data = [];
+            foreach ($rows as $r) {
+                $labels[] = $r['Nombre_Categoria'];
+                $data[] = (float)$r['total'];
+            }
             return ['labels' => $labels, 'data' => $data];
         } catch (PDOException $e) {
             error_log("Dashboard::porCat: " . $e->getMessage());
@@ -135,7 +141,8 @@ class Dashboard
             }
             $map = [];
             foreach ($rows as $r) $map[substr((string)$r['Fecha'], 0, 10)] = (int)$r['Total_Ventas'];
-            $labels = []; $data = [];
+            $labels = [];
+            $data = [];
             for ($i = $n - 1; $i >= 0; $i--) {
                 $d = date('Y-m-d', strtotime("-$i days"));
                 $labels[] = date('d/m', strtotime($d));
