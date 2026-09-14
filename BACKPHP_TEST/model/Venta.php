@@ -14,7 +14,7 @@ class Venta
     public function metodosPago()
     {
         try {
-            return $this->db->query("SELECT ID_Metodo, Tipo_Metodo FROM metodo_pago ORDER BY ID_Metodo")->fetchAll(PDO::FETCH_ASSOC);
+            return $this->db->query("SELECT ID_Metodo, Tipo_Metodo, Logo FROM metodo_pago ORDER BY ID_Metodo")->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) { return []; }
     }
 
@@ -63,12 +63,16 @@ class Venta
 
     /**
      * Checkout: crea venta + detalles + pago (factura y descuento stock via triggers).
+     * $pagoDetalle = ['entidad' => 'Visa/Bancolombia/Nequi', 'referencia' => numero enmascarado]
      * Retorna ['ID_Venta'=>, 'total'=>, 'factura'=>] o ['error'=>msg].
      */
-    public function checkout($idUsuario, $cart, $idMetodo)
+    public function checkout($idUsuario, $cart, $idMetodo, $pagoDetalle = [])
     {
         if (empty($cart)) return ['error' => 'Carrito vacío'];
         if (!ctype_digit((string)$idMetodo)) return ['error' => 'Método de pago inválido'];
+        $entidad = trim($pagoDetalle['entidad'] ?? '');
+        $referencia = trim($pagoDetalle['referencia'] ?? '');
+        if ($entidad === '' || $referencia === '') return ['error' => 'Completa la información del pago (banco y número).'];
         try {
             $this->db->beginTransaction();
             $mm = $this->db->prepare("SELECT ID_Metodo FROM metodo_pago WHERE ID_Metodo = :m LIMIT 1");
@@ -100,8 +104,8 @@ class Venta
                 $d->execute([':v' => $idVenta, ':p' => $idProd, ':q' => $qty, ':pr' => $precio]);
             }
             if ($total <= 0) { $this->db->rollBack(); return ['error' => 'Total inválido']; }
-            $pg = $this->db->prepare("INSERT INTO pago (ID_Venta, ID_Metodo, Monto_Pagado) VALUES (:v,:m,:t)");
-            $pg->execute([':v' => $idVenta, ':m' => $idMetodo, ':t' => $total]);
+            $pg = $this->db->prepare("INSERT INTO pago (ID_Venta, ID_Metodo, Monto_Pagado, Entidad_Bancaria, Numero_Referencia) VALUES (:v,:m,:t,:e,:r)");
+            $pg->execute([':v' => $idVenta, ':m' => $idMetodo, ':t' => $total, ':e' => $entidad, ':r' => $referencia]);
             // Factura auto via trg_generar_factura_auto
             $f = $this->db->prepare("SELECT Numero_Factura FROM factura WHERE ID_Venta = :v LIMIT 1");
             $f->execute([':v' => $idVenta]);
@@ -134,6 +138,7 @@ class Venta
                            (SELECT COALESCE(SUM(dv.Cantidad * dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total,
                            (SELECT COUNT(*) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Items,
                            (SELECT f.Numero_Factura FROM factura f WHERE f.ID_Venta = v.ID_Venta LIMIT 1) AS Factura,
+                           (SELECT p.Entidad_Bancaria FROM pago p WHERE p.ID_Venta = v.ID_Venta LIMIT 1) AS Entidad,
                            (SELECT mp.Tipo_Metodo FROM pago p JOIN metodo_pago mp ON p.ID_Metodo = mp.ID_Metodo WHERE p.ID_Venta = v.ID_Venta LIMIT 1) AS Metodo
                     FROM venta v
                     LEFT JOIN usuario u ON u.ID_Cliente = v.ID_Cliente

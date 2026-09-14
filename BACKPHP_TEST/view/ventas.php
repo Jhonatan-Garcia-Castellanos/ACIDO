@@ -120,7 +120,7 @@ if (!isset($resumenHoy)) { $resumenHoy = ['ventas'=>0,'ganancias'=>0,'ticket'=>0
                                         <td><?php echo htmlspecialchars($v['ClienteEmail'] ?? ('Cli '.$v['ID_Cliente'])); ?></td>
                                         <td><?php echo (int)$v['Items']; ?></td>
                                         <td><strong>$<?php echo number_format($v['Total'],0,',','.'); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($v['Metodo'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($v['Metodo'] ?? '-'); ?><?php if (!empty($v['Entidad'])) echo ' · ' . htmlspecialchars($v['Entidad']); ?></td>
                                         <td><code style="background:#edf2f7;padding:4px 8px;border-radius:4px;"><?php echo htmlspecialchars($v['Factura'] ?? '—'); ?></code></td>
                                         <td><button type="button" class="btn-action-edit btn-detalle" data-id="<?php echo $v['ID_Venta']; ?>" title="Ver productos"><i class="fa-solid fa-eye"></i></button></td>
                                     </tr>

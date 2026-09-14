@@ -138,21 +138,61 @@ if (!isset($metodos)) { $metodos = []; }
                 <div class="crud-modern-card">
                     <div class="crud-modern-header"><i class="fa-solid fa-cash-register"></i><span>Finalizar compra</span></div>
                     <div class="crud-form-body">
-                        <div style="font-size:20px;font-weight:800;margin-bottom:12px;">Total: <span id="cartTotal" data-value="<?php echo $cartData['total']; ?>">$<?php echo number_format($cartData['total'],0,',','.'); ?></span></div>
-                        <form action="index.php?action=carrito" method="POST" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+                        <div style="font-size:20px;font-weight:800;margin-bottom:4px;">Total: $<?php echo number_format($cartData['total'],0,',','.'); ?></div>
+                        <small style="color:#a0aec0;display:block;margin-bottom:16px;">Selecciona tu medio de pago y confirma. El número solo se guarda enmascarado.</small>
+                        <form action="index.php?action=carrito" method="POST" id="pagoForm" autocomplete="off">
                             <input type="hidden" name="cart_action" value="checkout">
                             <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
-                            <div>
-                                <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">MÉTODO DE PAGO</label>
-                                <select name="id_metodo" class="crud-input" required>
-                                    <?php foreach ($metodos as $m): ?>
-                                        <option value="<?php echo $m['ID_Metodo']; ?>"><?php echo htmlspecialchars($m['Tipo_Metodo']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                            <input type="hidden" name="entidad" id="entidadInput" value="">
+                            <div class="medios-pago">
+                                <?php $metodosFirst = true; foreach ($metodos as $m): ?>
+                                <?php
+                                    $tipoLower = mb_strtolower($m['Tipo_Metodo']);
+                                    $claseMedio = (strpos($tipoLower, 'tarjeta') !== false || strpos($tipoLower, 'visa') !== false || strpos($tipoLower, 'card') !== false) ? 'tarjeta' : 'cuenta';
+                                ?>
+                                <label class="medio-option">
+                                    <input type="radio" name="id_metodo" value="<?php echo $m['ID_Metodo']; ?>" class="medio-radio" data-tipo="<?php echo $claseMedio; ?>" data-entidad="<?php echo htmlspecialchars($m['Tipo_Metodo']); ?>" <?php echo $metodosFirst ? 'checked' : ''; ?>>
+                                    <span class="medio-logo">
+                                        <?php if (!empty($m['Logo'])): ?>
+                                            <img src="<?php echo htmlspecialchars($m['Logo']); ?>" alt="Logo <?php echo htmlspecialchars($m['Tipo_Metodo']); ?>">
+                                        <?php else: ?>
+                                            <i class="fa-solid fa-money-bill-wave"></i>
+                                        <?php endif; ?>
+                                    </span>
+                                    <span class="medio-nombre"><?php echo htmlspecialchars($m['Tipo_Metodo']); ?></span>
+                                </label>
+                                <?php $metodosFirst = false; endforeach; ?>
                             </div>
-                            <button type="submit" class="btn-crud-save"><i class="fa-solid fa-check"></i> Confirmar compra</button>
+                            <div id="campoTarjeta" class="pago-campos" style="display:none;">
+                                <div class="pago-campo ancho-2-3">
+                                    <label>Número de tarjeta</label>
+                                    <input type="text" id="numeroTarjeta" name="numero_tarjeta" class="crud-input" inputmode="numeric" maxlength="19" placeholder="4111 1111 1111 1111">
+                                </div>
+                                <div class="pago-campo ancho-1-3">
+                                    <label>CVV</label>
+                                    <input type="password" name="cvv" class="crud-input" maxlength="4" inputmode="numeric" placeholder="•••">
+                                </div>
+                                <div class="pago-campo">
+                                    <label>Titular de la tarjeta</label>
+                                    <input type="text" name="titular" class="crud-input" placeholder="Nombre como aparece en la tarjeta">
+                                </div>
+                                <div class="pago-campo ancho-1-2">
+                                    <label>Vencimiento</label>
+                                    <input type="text" name="fecha_exp" class="crud-input" maxlength="5" placeholder="MM/AA">
+                                </div>
+                            </div>
+                            <div id="campoCuenta" class="pago-campos" style="display:none;">
+                                <div class="pago-campo">
+                                    <label>Número de cuenta o celular</label>
+                                    <input type="text" name="cuenta" class="crud-input" inputmode="numeric" maxlength="20" placeholder="Ej. 3001234567">
+                                </div>
+                                <small style="color:#a0aec0;">La confirmación se envía a tu aplicación bancaria.</small>
+                            </div>
+                            <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <button type="submit" class="btn-crud-save"><i class="fa-solid fa-lock"></i> Confirmar y pagar</button>
+                                <small style="color:#a0aec0;">Se crea venta + detalle + pago + factura automática. Stock se descuenta al pagar.</small>
+                            </div>
                         </form>
-                        <small style="color:#a0aec0;">Se crea venta + detalle + pago + factura automática. Stock se descuenta al pagar.</small>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -212,6 +252,36 @@ if (!isset($metodos)) { $metodos = []; }
                 } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
             });
         });
+        // ---- Selector de medios de pago con logos ----
+        (function(){
+            const radios = document.querySelectorAll('.medio-radio');
+            const cajTarjeta = document.getElementById('campoTarjeta');
+            const cajCuenta = document.getElementById('campoCuenta');
+            const entidadInput = document.getElementById('entidadInput');
+            const numTarjeta = document.getElementById('numeroTarjeta');
+            function actualizar() {
+                const sel = document.querySelector('.medio-radio:checked');
+                if (!sel) return;
+                entidadInput.value = sel.dataset.entidad || '';
+                if (sel.dataset.tipo === 'tarjeta') {
+                    cajTarjeta.style.display = 'grid';
+                    cajCuenta.style.display = 'none';
+                    cajTarjeta.querySelectorAll('input').forEach(i => i.setAttribute('required', 'required'));
+                    cajCuenta.querySelectorAll('input').forEach(i => i.removeAttribute('required'));
+                } else {
+                    cajTarjeta.style.display = 'none';
+                    cajCuenta.style.display = 'grid';
+                    cajCuenta.querySelectorAll('input').forEach(i => i.setAttribute('required', 'required'));
+                    cajTarjeta.querySelectorAll('input').forEach(i => i.removeAttribute('required'));
+                }
+            }
+            radios.forEach(r => r.addEventListener('change', actualizar));
+            if (numTarjeta) numTarjeta.addEventListener('input', function() {
+                const dig = this.value.replace(/\D/g, '').slice(0, 16);
+                this.value = dig.replace(/(\d{4})(?=\d)/g, '$1 ');
+            });
+            actualizar();
+        })();
     </script>
 </body>
 </html>

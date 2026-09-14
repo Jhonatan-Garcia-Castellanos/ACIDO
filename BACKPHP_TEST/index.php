@@ -613,7 +613,12 @@ if (isset($_GET["action"])) {
             }
             if ($_POST["cart_action"] === "checkout") {
                 $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
-                $res = $ventaController->checkout($uid, $_POST["id_metodo"] ?? '');
+                $detallePago = [
+                    'entidad'        => trim($_POST["entidad"] ?? ''),
+                    'numero_tarjeta' => $_POST["numero_tarjeta"] ?? '',
+                    'cuenta'         => $_POST["cuenta"] ?? '',
+                ];
+                $res = $ventaController->checkout($uid, $_POST["id_metodo"] ?? '', $detallePago);
                 if (isset($res['ID_Venta'])) {
                     $url = "index.php?action=carrito&ok=" . $res['ID_Venta'];
                     if (!empty($res['factura'])) $url .= "&fac=" . urlencode($res['factura']);
