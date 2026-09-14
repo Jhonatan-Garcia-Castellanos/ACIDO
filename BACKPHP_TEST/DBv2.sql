@@ -28,6 +28,10 @@
        métodos de pago, productos demo y usuario Administrador
        (admin@acido.local / Admin123*). Sin ciudad ni métodos de pago el
        checkout y la creación de empleados fallan y el catálogo sale vacío.
+   14. Migraciones del equipo integradas (no ejecutar migrate_*.sql después):
+       producto.Stock_Minimo, alertas_sistema.ID_Producto + trigger antispam 24h,
+       tabla notificacion_log, columnas de pago (Logo/Entidad/Referencia),
+       usuario.Seudonimo/Foto y cliente.Documento.
    ============================================================ */
 DROP DATABASE IF EXISTS proyecto_acido;
 CREATE DATABASE proyecto_acido DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -129,11 +133,13 @@ CREATE TABLE proveedor (
   FOREIGN KEY (ID_Ciudad) REFERENCES ciudad(ID_Ciudad)
 ) ENGINE=InnoDB;
 
+-- Stock_Minimo: umbral por producto RF 2.3 (campana + kardex equipo). Default 10.
 CREATE TABLE producto (
   ID_Producto INT AUTO_INCREMENT PRIMARY KEY,
   Nombre_Producto VARCHAR(100) NOT NULL,
   Precio_Actual DECIMAL(10,2) NOT NULL,
   Stock_Actual INT NOT NULL DEFAULT 0,
+  Stock_Minimo INT NOT NULL DEFAULT 10,
   ID_Categoria INT NOT NULL,
   ID_Proveedor INT NOT NULL,
   Imagen_URL VARCHAR(512) NULL,
@@ -270,13 +276,29 @@ CREATE TABLE pqr (
   FOREIGN KEY (ID_Empleado) REFERENCES empleado(ID_Empleado)
 ) ENGINE=InnoDB;
 
+-- ID_Producto: enlaza la alerta con su producto (campana equipo, antispam 24h).
 CREATE TABLE alertas_sistema (
   ID_Alerta INT AUTO_INCREMENT PRIMARY KEY,
   Tipo VARCHAR(50) NOT NULL,
   Mensaje TEXT NOT NULL,
   Fecha_Creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-  Leido TINYINT(1) DEFAULT 0
+  Leido TINYINT(1) DEFAULT 0,
+  ID_Producto INT NULL,
+  FOREIGN KEY (ID_Producto) REFERENCES producto(ID_Producto)
 ) ENGINE=InnoDB;
+
+-- Historial auditable de correos al admin (stock + kardex equipo).
+CREATE TABLE IF NOT EXISTS notificacion_log (
+  ID_Log INT AUTO_INCREMENT PRIMARY KEY,
+  Fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  Tipo VARCHAR(20) NOT NULL COMMENT 'stock|kardex|resumen',
+  Destinatarios VARCHAR(500) NOT NULL,
+  Asunto VARCHAR(255) NOT NULL,
+  Resultado ENUM('ok','fallo') NOT NULL DEFAULT 'fallo',
+  Detalle VARCHAR(500) NULL,
+  INDEX idx_notif_fecha (Fecha),
+  INDEX idx_notif_tipo (Tipo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE password_resets (
   ID_Reset INT AUTO_INCREMENT PRIMARY KEY,
@@ -297,6 +319,8 @@ CREATE TABLE password_resets (
 CREATE INDEX idx_venta_fecha_cliente ON venta(Fecha_Venta, ID_Cliente);
 CREATE INDEX idx_movimiento_producto_fecha ON movimiento_inventario(ID_Producto, Fecha_Movimiento);
 CREATE INDEX idx_alerta_tipo_fecha ON alertas_sistema(Tipo, Fecha_Creacion);
+CREATE INDEX idx_alerta_noleida ON alertas_sistema(Leido, Tipo, Fecha_Creacion);
+CREATE INDEX idx_alerta_producto ON alertas_sistema(ID_Producto);
 CREATE INDEX idx_detalle_venta_venta ON detalle_venta(ID_Venta);
 CREATE INDEX idx_pago_venta ON pago(ID_Venta);
 CREATE INDEX idx_pedido_estado ON pedido(Estado_Pedido);
@@ -583,10 +607,30 @@ CREATE TRIGGER trg_devolver_stock_cancelacion AFTER UPDATE ON pedido FOR EACH RO
     END IF;
 END$$
 
+-- RF 2.3 equipo: cruza su propio Stock_Minimo, cubre INSERT y UPDATE,
+-- con antispam (no repite si hay no-leída del mismo producto en 24h).
 CREATE TRIGGER trg_alerta_stock_minimo AFTER UPDATE ON producto FOR EACH ROW BEGIN
-    IF NEW.Stock_Actual < 10 AND OLD.Stock_Actual >= 10 THEN
-        INSERT INTO alertas_sistema (Tipo, Mensaje)
-        VALUES ('STOCK_BAJO', CONCAT('Producto ', NEW.Nombre_Producto, ' en nivel crítico.'));
+    IF NEW.Stock_Actual <= NEW.Stock_Minimo AND OLD.Stock_Actual > OLD.Stock_Minimo THEN
+        IF NOT EXISTS (SELECT 1 FROM alertas_sistema
+                       WHERE ID_Producto = NEW.ID_Producto
+                         AND Tipo = 'STOCK_BAJO' AND Leido = 0
+                         AND Fecha_Creacion > NOW() - INTERVAL 24 HOUR) THEN
+            INSERT INTO alertas_sistema (Tipo, Mensaje, ID_Producto)
+            VALUES ('STOCK_BAJO',
+                    CONCAT('Stock bajo: ', NEW.Nombre_Producto,
+                           ' (', NEW.Stock_Actual, '/', NEW.Stock_Minimo, ')'),
+                    NEW.ID_Producto);
+        END IF;
+    END IF;
+END$$
+
+CREATE TRIGGER trg_alerta_stock_minimo_insert AFTER INSERT ON producto FOR EACH ROW BEGIN
+    IF NEW.Stock_Actual <= NEW.Stock_Minimo THEN
+        INSERT INTO alertas_sistema (Tipo, Mensaje, ID_Producto)
+        VALUES ('STOCK_BAJO',
+                CONCAT('Stock bajo: ', NEW.Nombre_Producto,
+                       ' (', NEW.Stock_Actual, '/', NEW.Stock_Minimo, ')'),
+                NEW.ID_Producto);
     END IF;
 END$$
 

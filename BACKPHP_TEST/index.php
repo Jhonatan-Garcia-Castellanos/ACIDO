@@ -357,7 +357,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["pass_action"]) && $_P
     }
     $resultado = $controller->cambiarPassword($email, $actual, $nueva);
     if (!empty($resultado['status'])) {
-        header("Location: index.php?action=login&status=password_updated");
+        // RF 4.7: aviso de confirmación al correo (no bloqueante: si falla,
+        // la clave ya cambió igual; se informa en el login con &mail=fail).
+        $mailSt = 'fail';
+        try {
+            require_once __DIR__ . "/lib/Mailer.php";
+            $av = (new Mailer())->enviarAvisoCambioClave($email);
+            if (!empty($av['ok'])) $mailSt = 'ok';
+        } catch (Throwable $e) {
+            error_log("Aviso cambio clave: " . $e->getMessage());
+        }
+        header("Location: index.php?action=login&status=password_updated&mail=" . $mailSt);
     } else {
         header("Location: index.php?action=change_password&error=" . urlencode($resultado['message'] ?? 'No se pudo cambiar la contraseña.'));
     }

@@ -42,6 +42,17 @@
                 <!-- Mensaje de error para JavaScript -->
                 <div id="errorMsg" class="error-msg" style="display: none;"></div>
 
+                <?php if (($_GET['status'] ?? '') === 'password_updated'): ?>
+                    <div style="background:#c6f6d5;color:#22543d;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;font-size:13px;">
+                        Contraseña actualizada. Ya puedes iniciar sesión.
+                        <?php if (($_GET['mail'] ?? '') === 'ok'): ?>
+                            <br><small>Se envió un aviso de confirmación a tu correo (revísalo en tu inbox de Mailtrap).</small>
+                        <?php else: ?>
+                            <br><small>No se pudo enviar el aviso al correo. Si no recibes nada en Mailtrap, reporta a soporte.</small>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+
                 <!-- UN SOLO FORMULARIO CON EL ID CORRECTO — RF 1.2: correo o seudónimo -->
                 <form id="loginForm" method="POST">
                     <input type="hidden" name="action" value="login">
