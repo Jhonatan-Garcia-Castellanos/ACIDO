@@ -159,9 +159,15 @@ class Usuario
             if ($esEmail) {
                 $stmt = $this->db->prepare("SELECT ca.Bloqueado_Hasta FROM control_accesos ca JOIN usuario u ON u.ID_Usuario = ca.ID_Usuario WHERE u.Email = :l AND u.deleted_at IS NULL LIMIT 1");
             } else {
-                $stmt = $this->db->prepare("SELECT ca.Bloqueado_Hasta FROM control_accesos ca JOIN usuario u ON u.ID_Usuario = ca.ID_Usuario WHERE (u.Seudonimo = :l OR u.Email = :l) AND u.deleted_at IS NULL LIMIT 1");
+                $stmt = $this->db->prepare("SELECT ca.Bloqueado_Hasta FROM control_accesos ca JOIN usuario u ON u.ID_Usuario = ca.ID_Usuario WHERE (u.Seudonimo = :l1 OR u.Email = :l2) AND u.deleted_at IS NULL LIMIT 1");
+                $stmt->execute([':l1' => $login, ':l2' => $login]);
+                $r = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($r && !empty($r['Bloqueado_Hasta']) && strtotime($r['Bloqueado_Hasta']) > time()) {
+                    return $r['Bloqueado_Hasta'];
+                }
+                return false;
             }
-            $stmt->execute([':l' => $esEmail ? $this->normalizarEmail($login) : $login]);
+            $stmt->execute([':l' => $this->normalizarEmail($login)]);
             $r = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($r && !empty($r['Bloqueado_Hasta']) && strtotime($r['Bloqueado_Hasta']) > time()) {
                 return $r['Bloqueado_Hasta'];
@@ -186,13 +192,18 @@ class Usuario
                 $query = "SELECT u.ID_Usuario, u.Email, u.Seudonimo, u.Foto, u.Password_Hash, u.Rol, u.deleted_at, c.Nombres AS ClienteNombres, c.Apellidos AS ClienteApellidos FROM usuario u LEFT JOIN cliente c ON c.ID_Cliente = u.ID_Cliente WHERE u.Email = :login AND u.deleted_at IS NULL LIMIT 1";
             } else {
                 // RF 1.2: login con correo O seudónimo (validación exacta)
-                $query = "SELECT u.ID_Usuario, u.Email, u.Seudonimo, u.Foto, u.Password_Hash, u.Rol, u.deleted_at, c.Nombres AS ClienteNombres, c.Apellidos AS ClienteApellidos FROM usuario u LEFT JOIN cliente c ON c.ID_Cliente = u.ID_Cliente WHERE (u.Seudonimo = :login OR u.Email = :login) AND u.deleted_at IS NULL LIMIT 1";
+                // OJO: con prepares nativos (EMULATE_PREPARES=false) no se puede
+                // reutilizar el mismo placeholder dos veces → se usan :login1/:login2
+                $query = "SELECT u.ID_Usuario, u.Email, u.Seudonimo, u.Foto, u.Password_Hash, u.Rol, u.deleted_at, c.Nombres AS ClienteNombres, c.Apellidos AS ClienteApellidos FROM usuario u LEFT JOIN cliente c ON c.ID_Cliente = u.ID_Cliente WHERE (u.Seudonimo = :login1 OR u.Email = :login2) AND u.deleted_at IS NULL LIMIT 1";
             }
             // Nota: si la columna Seudonimo/Foto aún no existe (sin migrar), reintenta solo por Email.
             try {
                 $stmt = $this->db->prepare($query);
-                $stmt->bindParam(":login", $login);
-                $stmt->execute();
+                if ($esEmail) {
+                    $stmt->execute([':login' => $login]);
+                } else {
+                    $stmt->execute([':login1' => $login, ':login2' => $login]);
+                }
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
             } catch (PDOException $e) {
                 if (stripos($e->getMessage(), 'Unknown column') === false) throw $e;
