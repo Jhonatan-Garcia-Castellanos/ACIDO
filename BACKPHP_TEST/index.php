@@ -31,6 +31,7 @@ $ACCESS = [
     'inventario_estado' => ['Administrador'], // Solo Admin inactiva/activa productos
     'notificaciones' => ['Administrador', 'Empleado'], // Campana stock bajo RF 2.3
     'api_alertas' => ['Administrador', 'Empleado'], // Polling JSON campana
+    'pedido_estado' => ['Administrador', 'Empleado'], // Logística RF 2.8/2.10 (sin Cliente)
     'catalogo'    => ['Administrador', 'Empleado', 'Cliente'], // Vitrina para Cliente
     'carrito'     => ['Administrador', 'Empleado', 'Cliente'],
     'ventas'      => ['Administrador', 'Empleado', 'Cliente'], // Admin/Empl ven todo, Cliente solo suyas
@@ -440,6 +441,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["alerta_action"])) {
     header("Location: " . $back);
     exit();
 }
+// 2c. Cambiar estado de pedido (logística RF 2.8/2.10). Solo Admin/Empleado.
+// La secuencia y el stock los validan los triggers; aquí se traduce el resultado.
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["pedido_estado"])) {
+    requireRole('pedido_estado');
+    checkCsrf();
+    $res = $ventaController->cambiarEstadoPedido($_POST["pedido_id"] ?? '', $_POST["pedido_estado"] ?? '');
+    $back = "index.php?action=ventas&tab=pendientes";
+    header("Location: " . $back . "&" . (!empty($res['ok']) ? "status" : "error") . "=" . urlencode($res['message'] ?? ''));
+    exit();
+}
 // Compat: toggle/delete por GET ya no ejecutan (antes era hueco CSRF) -> redirige sin cambios
 if (isset($_GET["toggle_id"]) || isset($_GET["delete_id"])) {
     requireRole('crud_delete');
@@ -846,6 +857,7 @@ if (isset($_GET["action"])) {
                     unset($_SESSION['shipping']);
                     $url = "index.php?action=carrito&ok=" . $res['ID_Venta'];
                     if (!empty($res['factura'])) $url .= "&fac=" . urlencode($res['factura']);
+                    if (!empty($res['ID_Pedido'])) $url .= "&ped=" . (int)$res['ID_Pedido'];
                     header("Location: " . $url);
                     exit();
                 }

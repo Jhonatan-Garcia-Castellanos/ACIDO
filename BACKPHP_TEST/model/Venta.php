@@ -104,6 +104,15 @@ class Venta
                 $d->execute([':v' => $idVenta, ':p' => $idProd, ':q' => $qty, ':pr' => $precio]);
             }
             if ($total <= 0) { $this->db->rollBack(); return ['error' => 'Total inválido']; }
+            // RF 2.8: el pedido nace Pendiente (reserva) y se confirma a Pagado
+            // ANTES del pago/descuento, para que el guard RF 2.10 valide stock real.
+            $dir = $this->direccionEnvio($idCliente);
+            if (empty($dir[1])) { $this->db->rollBack(); return ['error' => 'Sin cobertura de envío configurada']; }
+            $insP = $this->db->prepare("INSERT INTO pedido (ID_Venta, Direccion_Envio, Ciudad_Envio, Tipo_Envio, Estado_Pedido) VALUES (:v,:d,:c,'Estándar','Pendiente')");
+            $insP->execute([':v' => $idVenta, ':d' => $dir[0], ':c' => $dir[1]]);
+            $idPedido = (int)$this->db->lastInsertId();
+            $upP = $this->db->prepare("UPDATE pedido SET Estado_Pedido = 'Pagado' WHERE ID_Pedido = :p");
+            $upP->execute([':p' => $idPedido]);
             $pg = $this->db->prepare("INSERT INTO pago (ID_Venta, ID_Metodo, Monto_Pagado, Entidad_Bancaria, Numero_Referencia) VALUES (:v,:m,:t,:e,:r)");
             $pg->execute([':v' => $idVenta, ':m' => $idMetodo, ':t' => $total, ':e' => $entidad, ':r' => $referencia]);
             // Factura auto via trg_generar_factura_auto
@@ -124,7 +133,7 @@ class Venta
                     if (ctype_digit((string)$idProd)) $mv->registrarSalidaVenta($idProd, $qty, $idVenta, $idEmp);
                 }
             } catch (Exception $e) {}
-            return ['ID_Venta' => $idVenta, 'total' => $total, 'factura' => $fac['Numero_Factura'] ?? null];
+            return ['ID_Venta' => $idVenta, 'ID_Pedido' => $idPedido, 'total' => $total, 'factura' => $fac['Numero_Factura'] ?? null];
         } catch (PDOException $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             error_log("Venta::checkout: " . $e->getMessage());
@@ -133,10 +142,58 @@ class Venta
             if (strpos($msg, 'Sin disponibilidad') !== false) return ['error' => 'Sin stock disponible'];
             if (strpos($msg, 'Máximo 10') !== false) return ['error' => 'Máximo 10 unidades por producto'];
             if (strpos($msg, 'ya fue pagada') !== false) return ['error' => 'Venta ya pagada'];
+            if (strpos($msg, 'RF 2.10') !== false) return ['error' => 'Sin stock suficiente para confirmar el pedido'];
+            if (strpos($msg, 'Desde Pendiente') !== false || strpos($msg, 'Desde Pagado') !== false
+                || strpos($msg, 'desde Preparando') !== false || strpos($msg, 'Desde En camino') !== false) {
+                return ['error' => 'Transición de pedido no permitida'];
+            }
             return ['error' => 'No se pudo completar la compra'];
         } catch (Exception $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             return ['error' => $e->getMessage()];
+        }
+    }
+
+    /** Dirección de envío: principal del cliente o fallback auditable. Retorna [direccion, idCiudad]. */
+    private function direccionEnvio($idCliente)
+    {
+        try {
+            $st = $this->db->prepare(
+                "SELECT Direccion_Exacta, ID_Ciudad FROM libreta_direcciones " .
+                "WHERE ID_Cliente = :c ORDER BY Es_Principal DESC, ID_Direccion LIMIT 1"
+            );
+            $st->execute([':c' => $idCliente]);
+            if ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+                return [$r['Direccion_Exacta'], $r['ID_Ciudad']];
+            }
+            $ciu = $this->db->query("SELECT ID_Ciudad FROM ciudad ORDER BY ID_Ciudad LIMIT 1")->fetchColumn();
+            return ['Dirección por confirmar (Cliente #' . (int)$idCliente . ')', $ciu ?: null];
+        } catch (PDOException $e) {
+            return ['Dirección por confirmar', null];
+        }
+    }
+
+    /**
+     * Avanza/retrocede un pedido de forma controlada (RF 2.8/2.10).
+     * La secuencia y el stock los hacen cumplir los triggers; aquí solo se
+     * traduce el error SQL a mensaje claro. Retorna ['ok'=>bool,'message'=>].
+     */
+    public function cambiarEstadoPedido($idPedido, $nuevoEstado)
+    {
+        $permitidos = ['Pagado', 'Preparando', 'En camino', 'Entregado', 'Cancelado'];
+        if (!ctype_digit((string)$idPedido)) return ['ok' => false, 'message' => 'Pedido inválido'];
+        if (!in_array($nuevoEstado, $permitidos, true)) return ['ok' => false, 'message' => 'Estado inválido'];
+        try {
+            $st = $this->db->prepare("UPDATE pedido SET Estado_Pedido = :e WHERE ID_Pedido = :p");
+            $st->execute([':e' => $nuevoEstado, ':p' => $idPedido]);
+            if ($st->rowCount() === 0) return ['ok' => false, 'message' => 'Pedido no existe o ya está en ese estado'];
+            return ['ok' => true, 'message' => "Pedido #$idPedido → $nuevoEstado"];
+        } catch (PDOException $e) {
+            error_log("Venta::cambiarEstadoPedido: " . $e->getMessage());
+            $msg = $e->getMessage();
+            if (strpos($msg, 'RF 2.10') !== false) return ['ok' => false, 'message' => 'Bloqueado (RF 2.10): stock insuficiente para ese estado'];
+            if (preg_match('/Error:\s*(.+?)(\s*\.|$)/', $msg, $m)) return ['ok' => false, 'message' => trim($m[1], '. ')];
+            return ['ok' => false, 'message' => 'No se pudo cambiar el estado'];
         }
     }
 
@@ -205,7 +262,7 @@ class Venta
     public function listarPendientes($idCliente = null)
     {
         try {
-            $where = "WHERE pe.Estado_Pedido IN ('Preparando','En camino')";
+            $where = "WHERE pe.Estado_Pedido IN ('Pendiente','Pagado','Preparando','En camino')";
             $params = [];
             if ($idCliente !== null) { $where .= ' AND v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
             $sql = "SELECT pe.ID_Pedido, pe.Estado_Pedido, pe.Direccion_Envio, pe.Tipo_Envio,
