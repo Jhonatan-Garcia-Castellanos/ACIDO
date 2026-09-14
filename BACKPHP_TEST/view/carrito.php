@@ -151,7 +151,7 @@ if (!isset($metodos)) { $metodos = []; }
                                     $claseMedio = (strpos($tipoLower, 'tarjeta') !== false || strpos($tipoLower, 'visa') !== false || strpos($tipoLower, 'card') !== false) ? 'tarjeta' : 'cuenta';
                                 ?>
                                 <label class="medio-option">
-                                    <input type="radio" name="id_metodo" value="<?php echo $m['ID_Metodo']; ?>" class="medio-radio" data-tipo="<?php echo $claseMedio; ?>" data-entidad="<?php echo htmlspecialchars($m['Tipo_Metodo']); ?>" <?php echo $metodosFirst ? 'checked' : ''; ?>>
+                                    <input type="radio" name="id_metodo" value="<?php echo $m['ID_Metodo']; ?>" class="medio-radio" data-tipo="<?php echo $claseMedio; ?>" data-entidad="<?php echo htmlspecialchars($m['Tipo_Metodo']); ?>" data-logo="<?php echo !empty($m['Logo']) ? '1' : '0'; ?>" <?php echo $metodosFirst ? 'checked' : ''; ?>>
                                     <span class="medio-logo">
                                         <?php if (!empty($m['Logo'])): ?>
                                             <img src="<?php echo htmlspecialchars($m['Logo']); ?>" alt="Logo <?php echo htmlspecialchars($m['Tipo_Metodo']); ?>">
@@ -259,20 +259,31 @@ if (!isset($metodos)) { $metodos = []; }
             const cajCuenta = document.getElementById('campoCuenta');
             const entidadInput = document.getElementById('entidadInput');
             const numTarjeta = document.getElementById('numeroTarjeta');
+            // Refleja al backend (VentaController::checkout): tarjeta exige número+Luhn,
+            // cuenta/celular solo si el método tiene logo; el resto no pide nada.
             function actualizar() {
                 const sel = document.querySelector('.medio-radio:checked');
                 if (!sel) return;
                 entidadInput.value = sel.dataset.entidad || '';
+                const req = (box, on) => box.querySelectorAll('input').forEach(i => {
+                    if (on) i.setAttribute('required', 'required');
+                    else i.removeAttribute('required');
+                });
                 if (sel.dataset.tipo === 'tarjeta') {
                     cajTarjeta.style.display = 'grid';
                     cajCuenta.style.display = 'none';
-                    cajTarjeta.querySelectorAll('input').forEach(i => i.setAttribute('required', 'required'));
-                    cajCuenta.querySelectorAll('input').forEach(i => i.removeAttribute('required'));
-                } else {
+                    req(cajTarjeta, true);
+                    req(cajCuenta, false);
+                } else if (sel.dataset.logo === '1') {
                     cajTarjeta.style.display = 'none';
                     cajCuenta.style.display = 'grid';
-                    cajCuenta.querySelectorAll('input').forEach(i => i.setAttribute('required', 'required'));
-                    cajTarjeta.querySelectorAll('input').forEach(i => i.removeAttribute('required'));
+                    req(cajCuenta, true);
+                    req(cajTarjeta, false);
+                } else {
+                    cajTarjeta.style.display = 'none';
+                    cajCuenta.style.display = 'none';
+                    req(cajTarjeta, false);
+                    req(cajCuenta, false);
                 }
             }
             radios.forEach(r => r.addEventListener('change', actualizar));
