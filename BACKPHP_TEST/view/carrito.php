@@ -51,6 +51,7 @@ if (!isset($metodos)) { $metodos = []; }
             <header class="topbar">
                 <div class="search-bar"><input type="text" placeholder="Carrito..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
                 <div class="topbar-user">
+                    <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
                     <div class="icon-badge">
                         <i class="fa-solid fa-bell"></i>
                         <span class="badge red">3+</span>
@@ -103,21 +104,21 @@ if (!isset($metodos)) { $metodos = []; }
                             <tbody>
                                 <?php if (!empty($cartData['items'])): ?>
                                     <?php foreach ($cartData['items'] as $it): ?>
-                                    <tr>
+                                    <tr id="cartRow-<?php echo $it['ID_Producto']; ?>">
                                         <td><strong><?php echo htmlspecialchars($it['Nombre_Producto']); ?></strong><br><small style="color:#a0aec0;">Stock: <?php echo (int)$it['Stock_Actual']; ?><?php if((int)$it['Activo']!==1) echo " · INACTIVO"; ?></small></td>
                                         <td>$<?php echo number_format($it['Precio_Actual'],0,',','.'); ?></td>
                                         <td>
-                                            <form action="index.php?action=carrito" method="POST" style="display:flex;gap:6px;align-items:center;">
+                                            <form action="index.php?action=carrito" method="POST" class="ajax-cart-update" style="display:flex;gap:6px;align-items:center;">
                                                 <input type="hidden" name="cart_action" value="update">
                                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
-                                                <input type="number" name="qty" value="<?php echo $it['cantidad']; ?>" min="1" max="10" class="crud-input" style="width:70px;">
+                                                <input type="number" name="qty" value="<?php echo $it['cantidad']; ?>" min="1" max="10" class="crud-input qty-input" data-id="<?php echo $it['ID_Producto']; ?>" data-price="<?php echo $it['Precio_Actual']; ?>" style="width:70px;">
                                                 <button type="submit" class="btn-action-edit">Actualizar</button>
                                             </form>
                                         </td>
-                                        <td><strong>$<?php echo number_format($it['subtotal'],0,',','.'); ?></strong></td>
+                                        <td class="row-subtotal" data-id="<?php echo $it['ID_Producto']; ?>"><strong>$<?php echo number_format($it['subtotal'],0,',','.'); ?></strong></td>
                                         <td style="text-align:right;">
-                                            <form action="index.php?action=carrito" method="POST" style="display:inline;">
+                                            <form action="index.php?action=carrito" method="POST" class="ajax-cart-remove" data-id="<?php echo $it['ID_Producto']; ?>" style="display:inline;">
                                                 <input type="hidden" name="cart_action" value="remove">
                                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
@@ -137,7 +138,7 @@ if (!isset($metodos)) { $metodos = []; }
                 <div class="crud-modern-card">
                     <div class="crud-modern-header"><i class="fa-solid fa-cash-register"></i><span>Finalizar compra</span></div>
                     <div class="crud-form-body">
-                        <div style="font-size:20px;font-weight:800;margin-bottom:12px;">Total: $<?php echo number_format($cartData['total'],0,',','.'); ?></div>
+                        <div style="font-size:20px;font-weight:800;margin-bottom:12px;">Total: <span id="cartTotal" data-value="<?php echo $cartData['total']; ?>">$<?php echo number_format($cartData['total'],0,',','.'); ?></span></div>
                         <form action="index.php?action=carrito" method="POST" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
                             <input type="hidden" name="cart_action" value="checkout">
                             <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
@@ -158,11 +159,59 @@ if (!isset($metodos)) { $metodos = []; }
             </div>
         </main>
     </div>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        const sb=document.getElementById('sidebar'),tb=document.getElementById('toggleSidebar');
-        if(tb&&sb)tb.addEventListener('click',()=>sb.classList.toggle('collapsed'));
-        const ub=document.getElementById('userMenuBtn'),um=document.getElementById('userDropdownMenu');
-        if(ub&&um){ub.addEventListener('click',(e)=>{e.stopPropagation();um.classList.toggle('show');});document.addEventListener('click',(e)=>{if(!um.contains(e.target)&&!ub.contains(e.target))um.classList.remove('show');});}
+        const fmtMoney = (v) => '$' + Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+        // Subtotal en vivo al cambiar cantidad (antes de guardar)
+        document.querySelectorAll('.qty-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const q = Math.max(1, Math.min(10, parseInt(inp.value, 10) || 1));
+                const cell = document.querySelector('.row-subtotal[data-id="' + inp.dataset.id + '"] strong');
+                if (cell) cell.textContent = fmtMoney(q * parseFloat(inp.dataset.price));
+            });
+        });
+        async function postCart(form) {
+            const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            return res.json();
+        }
+        function paintTotals(d) {
+            window.updateCartBadge(d.cartCount);
+            const t = document.getElementById('cartTotal');
+            if (t) t.textContent = fmtMoney(d.total);
+            Object.keys(d.items || {}).forEach(id => {
+                const cell = document.querySelector('.row-subtotal[data-id="' + id + '"] strong');
+                if (cell) cell.textContent = fmtMoney(d.items[id].subtotal);
+                const inp = document.querySelector('.qty-input[data-id="' + id + '"]');
+                if (inp) inp.value = d.items[id].cantidad;
+            });
+        }
+        // Actualizar cantidad sin recargar
+        document.querySelectorAll('.ajax-cart-update').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const d = await postCart(f);
+                    if (d.success) { paintTotals(d); window.acidoToast('Cantidad actualizada', 'ok'); }
+                } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
+            });
+        });
+        // Quitar producto con animación, sin recargar
+        document.querySelectorAll('.ajax-cart-remove').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = f.dataset.id;
+                try {
+                    const d = await postCart(f);
+                    if (d.success) {
+                        paintTotals(d);
+                        const row = document.getElementById('cartRow-' + id);
+                        if (row) { row.classList.add('removing'); setTimeout(() => row.remove(), 300); }
+                        window.acidoToast('Producto quitado', 'ok');
+                        if ((d.cartCount || 0) === 0) setTimeout(() => window.location.reload(), 400);
+                    }
+                } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
+            });
+        });
     </script>
 </body>
 </html>

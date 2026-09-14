@@ -470,8 +470,41 @@ if (isset($_GET["action"])) {
 
     if ($_GET["action"] === "dashboard") {
         requireRole('dashboard');
-        $dashData = $dashboardController->datos();
+        $dashData = $dashboardController->datos((int)($_GET['n'] ?? 6));
         require_once "view/dashboard.php";
+        exit();
+    }
+
+    // JSON para auto-actualización del dashboard (AJAX cada 30s, sin recargar).
+    // ?n=3|6|12 controla el rango de la gráfica mensual.
+    if ($_GET["action"] === "dashboard_data") {
+        requireRole('dashboard');
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode($dashboardController->datos($_GET['n'] ?? 6));
+        exit();
+    }
+
+    // Reporte de ventas en CSV (botón "Generar Reporte" del dashboard).
+    if ($_GET["action"] === "reporte_csv") {
+        requireRole('dashboard');
+        $uidRep = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+        $filas = $ventaController->listarPara(currentRole(), $uidRep);
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="reporte_ventas_' . date('Ymd_His') . '.csv"');
+        echo "\xEF\xBB\xBF"; // BOM para que Excel muestre tildes
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['ID_Venta', 'Fecha', 'Cliente', 'Items', 'Total', 'Metodo', 'Factura'], ';');
+        foreach ($filas as $f) {
+            fputcsv($out, [
+                $f['ID_Venta'] ?? '', $f['Fecha_Venta'] ?? '',
+                $f['ClienteEmail'] ?? ('Cli ' . ($f['ID_Cliente'] ?? '')),
+                $f['Items'] ?? 0, $f['Total'] ?? 0,
+                $f['Metodo'] ?? '-', $f['Factura'] ?? '-',
+            ], ';');
+        }
+        fclose($out);
         exit();
     }
 
@@ -527,7 +560,14 @@ if (isset($_GET["action"])) {
         // Agregar al carrito desde catálogo
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"]) && $_POST["cart_action"] === "add") {
             checkCsrf();
-            $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+            $okAdd = $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+            $isAjaxCat = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjaxCat) {
+                while (ob_get_level()) { ob_end_clean(); }
+                header('Content-Type: application/json');
+                echo json_encode(['success' => (bool)$okAdd, 'cartCount' => $ventaController->contar()]);
+                exit();
+            }
             header("Location: index.php?action=catalogo");
             exit();
         }
@@ -540,18 +580,34 @@ if (isset($_GET["action"])) {
         requireRole('carrito');
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["cart_action"])) {
             checkCsrf();
+            $isAjaxCart = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            // Respuesta JSON para add/update/remove (el carrito se actualiza sin recargar)
+            $cartJson = function () use ($ventaController) {
+                while (ob_get_level()) { ob_end_clean(); }
+                header('Content-Type: application/json');
+                $d = $ventaController->detalle();
+                $items = [];
+                foreach ($d['items'] as $it) {
+                    $items[(string)$it['ID_Producto']] = ['cantidad' => $it['cantidad'], 'subtotal' => $it['subtotal']];
+                }
+                echo json_encode(['success' => true, 'cartCount' => $ventaController->contar(), 'total' => $d['total'], 'items' => $items]);
+                exit();
+            };
             if ($_POST["cart_action"] === "add") {
                 $ventaController->agregar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+                if ($isAjaxCart) $cartJson();
                 header("Location: index.php?action=carrito");
                 exit();
             }
             if ($_POST["cart_action"] === "update") {
                 $ventaController->actualizar($_POST["id"] ?? '', $_POST["qty"] ?? 1);
+                if ($isAjaxCart) $cartJson();
                 header("Location: index.php?action=carrito");
                 exit();
             }
             if ($_POST["cart_action"] === "remove") {
                 $ventaController->quitar($_POST["id"] ?? '');
+                if ($isAjaxCart) $cartJson();
                 header("Location: index.php?action=carrito");
                 exit();
             }
@@ -580,6 +636,24 @@ if (isset($_GET["action"])) {
         $ventas = $ventaController->listarPara(currentRole(), $uid);
         $resumenHoy = $ventaController->resumenHoyPara(currentRole(), $uid);
         require_once "view/ventas.php";
+        exit();
+    }
+
+    // Detalle de una venta en JSON (filas expandibles de ventas; respeta rol)
+    if ($_GET["action"] === "venta_detalle") {
+        requireRole('ventas');
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        $idV = $_GET['id'] ?? '';
+        $out = ['success' => false, 'items' => []];
+        if (ctype_digit((string)$idV)) {
+            $uidDet = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+            $mine = array_map('intval', array_column($ventaController->listarPara(currentRole(), $uidDet), 'ID_Venta'));
+            if (in_array((int)$idV, $mine, true)) {
+                $out = ['success' => true, 'items' => $ventaController->detalleVenta($idV)];
+            }
+        }
+        echo json_encode($out);
         exit();
     }
 

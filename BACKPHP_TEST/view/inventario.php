@@ -98,6 +98,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                     <button><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <div class="topbar-user">
+                    <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
                     <div class="icon-badge">
                         <i class="fa-solid fa-bell"></i>
                         <span class="badge red">3+</span>
@@ -148,15 +149,15 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px;">
                     <div class="crud-modern-card" style="margin:0;padding:16px;">
                         <small style="color:#4a5568;font-weight:700;">VALORIZACIÓN STOCK</small>
-                        <div style="font-size:22px;font-weight:800;">$<?php echo number_format($resumen['valorizacion'] ?? 0, 0, ',', '.'); ?></div>
+                        <div class="count-up" data-money="1" data-value="<?php echo (float)($resumen['valorizacion'] ?? 0); ?>" style="font-size:22px;font-weight:800;">$<?php echo number_format($resumen['valorizacion'] ?? 0, 0, ',', '.'); ?></div>
                     </div>
                     <div class="crud-modern-card" style="margin:0;padding:16px;">
                         <small style="color:#4a5568;font-weight:700;">AGOTADOS (stock 0)</small>
-                        <div style="font-size:22px;font-weight:800;"><?php echo (int)($resumen['agotados'] ?? 0); ?></div>
+                        <div class="count-up" data-value="<?php echo (int)($resumen['agotados'] ?? 0); ?>" style="font-size:22px;font-weight:800;"><?php echo (int)($resumen['agotados'] ?? 0); ?></div>
                     </div>
                     <div class="crud-modern-card" style="margin:0;padding:16px;">
                         <small style="color:#4a5568;font-weight:700;">STOCK BAJO (&lt;10)</small>
-                        <div style="font-size:22px;font-weight:800;"><?php echo (int)($resumen['stock_bajo'] ?? 0); ?></div>
+                        <div class="count-up" data-value="<?php echo (int)($resumen['stock_bajo'] ?? 0); ?>" style="font-size:22px;font-weight:800;"><?php echo (int)($resumen['stock_bajo'] ?? 0); ?></div>
                     </div>
                 </div>
                 <?php if ($__canEdit): ?>
@@ -302,20 +303,8 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
             </div>
         </main>
     </div>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        const sidebar = document.getElementById('sidebar');
-        const toggleSidebarBtn = document.getElementById('toggleSidebar');
-        if (toggleSidebarBtn && sidebar) {
-            toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
-        }
-        const userMenuBtn = document.getElementById('userMenuBtn');
-        const userDropdownMenu = document.getElementById('userDropdownMenu');
-        if (userMenuBtn && userDropdownMenu) {
-            userMenuBtn.addEventListener('click', (e) => { e.stopPropagation(); userDropdownMenu.classList.toggle('show'); });
-            document.addEventListener('click', (e) => {
-                if (!userDropdownMenu.contains(e.target) && !userMenuBtn.contains(e.target)) userDropdownMenu.classList.remove('show');
-            });
-        }
         function editarProducto(id, nombre, precio, stock, cat, prov) {
             document.getElementById('form-id').value = id;
             document.getElementById('form-nombre').value = nombre;

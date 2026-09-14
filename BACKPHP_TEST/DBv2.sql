@@ -33,7 +33,7 @@ DROP DATABASE IF EXISTS proyecto_acido;
 CREATE DATABASE proyecto_acido DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE proyecto_acido;
 
--- ==============================================================================
+-- ============================================================================== 
 -- 1. TABLAS BASE Y ESTRUCTURA RELACIONAL (3NF)
 -- ==============================================================================
 
