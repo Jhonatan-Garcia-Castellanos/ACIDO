@@ -107,6 +107,19 @@ class Venta
             $f->execute([':v' => $idVenta]);
             $fac = $f->fetch(PDO::FETCH_ASSOC);
             $this->db->commit();
+            // RF 2.3: aviso email best-effort si algo quedó bajo mínimo (no rompe la venta si falla).
+            try {
+                $this->avisarStockBajo(array_keys($cart));
+            } catch (Exception $e) {}
+            // RF 2.7: trazabilidad Salida en Kardex (best-effort).
+            try {
+                require_once __DIR__ . "/Movimiento.php";
+                $mv = new Movimiento();
+                $idEmp = $mv->resolverEmpleado($idUsuario);
+                foreach ($cart as $idProd => $qty) {
+                    if (ctype_digit((string)$idProd)) $mv->registrarSalidaVenta($idProd, $qty, $idVenta, $idEmp);
+                }
+            } catch (Exception $e) {}
             return ['ID_Venta' => $idVenta, 'total' => $total, 'factura' => $fac['Numero_Factura'] ?? null];
         } catch (PDOException $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
@@ -159,6 +172,93 @@ class Venta
         } catch (PDOException $e) { return []; }
     }
 
+    /** RF 2.2: items con imagen/código/precio + comprador (nombre, documento, usuario). */
+    public function detalleCompleto($idVenta)
+    {
+        try {
+            $st = $this->db->prepare(
+                "SELECT dv.ID_Producto, dv.Cantidad, dv.Precio_Venta_Historico,
+                        p.Nombre_Producto, p.Imagen_URL
+                 FROM detalle_venta dv JOIN producto p ON p.ID_Producto = dv.ID_Producto
+                 WHERE dv.ID_Venta = :v"
+            );
+            $st->execute([':v' => $idVenta]);
+            $items = $st->fetchAll(PDO::FETCH_ASSOC);
+            $cl = $this->db->prepare(
+                "SELECT v.ID_Cliente, c.Nombres, c.Apellidos, c.Documento, c.Telefono,
+                        u.Email, u.Seudonimo
+                 FROM venta v JOIN cliente c ON c.ID_Cliente = v.ID_Cliente
+                 LEFT JOIN usuario u ON u.ID_Cliente = v.ID_Cliente
+                 WHERE v.ID_Venta = :v LIMIT 1"
+            );
+            $cl->execute([':v' => $idVenta]);
+            return ['items' => $items, 'cliente' => $cl->fetch(PDO::FETCH_ASSOC) ?: []];
+        } catch (PDOException $e) { return ['items' => [], 'cliente' => []]; }
+    }
+
+    /** RF 2.5: ventas pendientes por entregar (Preparando/En camino). */
+    public function listarPendientes($idCliente = null)
+    {
+        try {
+            $where = "WHERE pe.Estado_Pedido IN ('Preparando','En camino')";
+            $params = [];
+            if ($idCliente !== null) { $where .= ' AND v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $sql = "SELECT pe.ID_Pedido, pe.Estado_Pedido, pe.Direccion_Envio, pe.Tipo_Envio,
+                           ci.Nombre_Ciudad, v.ID_Venta, v.Fecha_Venta AS Fecha_Compra,
+                           c.Nombres, c.Apellidos,
+                           (SELECT COALESCE(SUM(dv.Cantidad),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Unidades,
+                           (SELECT COALESCE(SUM(dv.Cantidad*dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total
+                    FROM pedido pe JOIN venta v ON v.ID_Venta = pe.ID_Venta
+                    JOIN cliente c ON c.ID_Cliente = v.ID_Cliente
+                    LEFT JOIN ciudad ci ON ci.ID_Ciudad = pe.Ciudad_Envio
+                    $where ORDER BY v.ID_Venta DESC LIMIT 100";
+            $st = $this->db->prepare($sql);
+            $st->execute($params);
+            return $st->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) { return []; }
+    }
+
+    /** RF 2.4: compras entregadas. */
+    public function listarEntregadas($idCliente = null)
+    {
+        try {
+            $where = "WHERE pe.Estado_Pedido = 'Entregado'";
+            $params = [];
+            if ($idCliente !== null) { $where .= ' AND v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $sql = "SELECT pe.ID_Pedido, pe.Estado_Pedido, pe.Direccion_Envio,
+                           v.ID_Venta, v.Fecha_Venta AS Fecha_Compra,
+                           c.Nombres, c.Apellidos,
+                           (SELECT COALESCE(SUM(dv.Cantidad*dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total,
+                           (SELECT COUNT(*) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Items
+                    FROM pedido pe JOIN venta v ON v.ID_Venta = pe.ID_Venta
+                    JOIN cliente c ON c.ID_Cliente = v.ID_Cliente
+                    $where ORDER BY v.ID_Venta DESC LIMIT 100";
+            $st = $this->db->prepare($sql);
+            $st->execute($params);
+            return $st->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) { return []; }
+    }
+
+    /** RF 2.6: facturas generadas con cliente, total y fecha. */
+    public function listarFacturas($idCliente = null)
+    {
+        try {
+            $where = '';
+            $params = [];
+            if ($idCliente !== null) { $where = 'WHERE v.ID_Cliente = :c'; $params[':c'] = $idCliente; }
+            $sql = "SELECT f.Numero_Factura, f.Fecha_Emision, v.ID_Venta,
+                           c.Nombres, c.Apellidos,
+                           (SELECT COALESCE(SUM(dv.Cantidad*dv.Precio_Venta_Historico),0) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Total,
+                           (SELECT COUNT(*) FROM detalle_venta dv WHERE dv.ID_Venta = v.ID_Venta) AS Items
+                    FROM factura f JOIN venta v ON v.ID_Venta = f.ID_Venta
+                    JOIN cliente c ON c.ID_Cliente = v.ID_Cliente
+                    $where ORDER BY f.ID_Factura DESC LIMIT 100";
+            $st = $this->db->prepare($sql);
+            $st->execute($params);
+            return $st->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) { return []; }
+    }
+
     /** Resumen automático del día (se recalcula en cada carga). Respeta filtro cliente. */
     public function resumenHoy($idCliente = null)
     {
@@ -186,5 +286,26 @@ class Venta
             $r = $stmt->fetch(PDO::FETCH_ASSOC);
             return $r['ID_Cliente'] ?? null;
         } catch (PDOException $e) { return null; }
+    }
+
+    /** RF 2.3: tras commit, email a admins SOLO por episodios nuevos de stock bajo.
+     *  Usa AlertaStock::sincronizarBajoMinimo (dedup 24h): si la alerta ya
+     *  existía sin leer, el admin ya fue notificado y no se reenvía. */
+    private function avisarStockBajo($ids)
+    {
+        try {
+            require_once __DIR__ . "/AlertaStock.php";
+            require_once __DIR__ . "/../lib/Mailer.php";
+            $al = new AlertaStock();
+            $nuevas = $al->sincronizarBajoMinimo();
+            if (empty($nuevas)) return;
+            $adm = $al->emailsAdmins();
+            $adm = array_values(array_filter((array)$adm));
+            if (empty($adm)) return;
+            $m = new Mailer();
+            if ($m->isConfigured()) $m->enviarStockBajo($adm, $nuevas);
+        } catch (Exception $e) {
+            error_log("Venta::avisarStockBajo: " . $e->getMessage());
+        }
     }
 }

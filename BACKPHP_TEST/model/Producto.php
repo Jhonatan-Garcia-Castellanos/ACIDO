@@ -14,15 +14,30 @@ class Producto
     public function obtenerTodos()
     {
         try {
-            $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
-                           p.ID_Categoria, p.ID_Proveedor, p.Imagen_URL, p.deleted_at,
-                           (p.deleted_at IS NULL) AS Activo,
-                           c.Nombre_Categoria, pr.Nombre_Empresa AS Proveedor
-                    FROM producto p
-                    LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
-                    LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
-                    ORDER BY p.ID_Producto DESC LIMIT 200";
-            $stmt = $this->db->query($sql);
+            try {
+                $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
+                               p.Stock_Minimo,
+                               p.ID_Categoria, p.ID_Proveedor, p.Imagen_URL, p.deleted_at,
+                               (p.deleted_at IS NULL) AS Activo,
+                               c.Nombre_Categoria, pr.Nombre_Empresa AS Proveedor
+                        FROM producto p
+                        LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
+                        LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
+                        ORDER BY p.ID_Producto DESC LIMIT 200";
+                $stmt = $this->db->query($sql);
+            } catch (PDOException $e) {
+                // Pre-migración: sin columna Stock_Minimo
+                $sql = "SELECT p.ID_Producto, p.Nombre_Producto, p.Precio_Actual, p.Stock_Actual,
+                               10 AS Stock_Minimo,
+                               p.ID_Categoria, p.ID_Proveedor, p.Imagen_URL, p.deleted_at,
+                               (p.deleted_at IS NULL) AS Activo,
+                               c.Nombre_Categoria, pr.Nombre_Empresa AS Proveedor
+                        FROM producto p
+                        LEFT JOIN categoria c ON p.ID_Categoria = c.ID_Categoria
+                        LEFT JOIN proveedor pr ON p.ID_Proveedor = pr.ID_Proveedor
+                        ORDER BY p.ID_Producto DESC LIMIT 200";
+                $stmt = $this->db->query($sql);
+            }
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Producto::obtenerTodos: " . $e->getMessage());
@@ -63,7 +78,12 @@ class Producto
         try {
             $val = $this->db->query("SELECT SUM(Stock_Actual * Precio_Actual) AS total FROM producto WHERE deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
             $cero = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual = 0 AND deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
-            $bajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual > 0 AND Stock_Actual < 10 AND deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
+            try {
+                $bajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual > 0 AND Stock_Actual <= Stock_Minimo AND deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                // Pre-migración: umbral fijo 10
+                $bajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE Stock_Actual > 0 AND Stock_Actual < 10 AND deleted_at IS NULL")->fetch(PDO::FETCH_ASSOC);
+            }
             return [
                 'valorizacion' => $val['total'] ?? 0,
                 'agotados' => $cero['c'] ?? 0,
@@ -93,24 +113,42 @@ class Producto
         $stock = $datos['Stock_Actual'] ?? $datos['stock'] ?? 0;
         $cat = $datos['ID_Categoria'] ?? $datos['categoria'] ?? null;
         $prov = $datos['ID_Proveedor'] ?? $datos['proveedor'] ?? null;
+        $minimo = $datos['Stock_Minimo'] ?? $datos['stock_minimo'] ?? $datos['minimo'] ?? 10;
 
         if ($nombre === '' || !is_numeric($precio) || $precio <= 0) return false;
         if (!is_numeric($stock) || $stock < 0) return false;
         if (!ctype_digit((string)$cat) || !ctype_digit((string)$prov)) return false;
+        if (!is_numeric($minimo) || $minimo < 0) $minimo = 10;
+        $minimo = (int)$minimo;
 
         try {
+            $conMinimo = true;
+            try {
+                $this->db->query("SELECT Stock_Minimo FROM producto LIMIT 0");
+            } catch (PDOException $e) {
+                $conMinimo = false;
+            }
             if (!empty($id)) {
                 if (!ctype_digit($id)) return false;
-                $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr WHERE ID_Producto=:id AND deleted_at IS NULL");
+                if ($conMinimo) {
+                    $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr, Stock_Minimo=:m WHERE ID_Producto=:id AND deleted_at IS NULL");
+                } else {
+                    $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr WHERE ID_Producto=:id AND deleted_at IS NULL");
+                }
                 $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             } else {
-                $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor) VALUES (:n,:p,:s,:c,:pr)");
+                if ($conMinimo) {
+                    $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor, Stock_Minimo) VALUES (:n,:p,:s,:c,:pr,:m)");
+                } else {
+                    $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor) VALUES (:n,:p,:s,:c,:pr)");
+                }
             }
             $stmt->bindParam(":n", $nombre);
             $stmt->bindParam(":p", $precio);
             $stmt->bindParam(":s", $stock, PDO::PARAM_INT);
             $stmt->bindParam(":c", $cat, PDO::PARAM_INT);
             $stmt->bindParam(":pr", $prov, PDO::PARAM_INT);
+            if ($conMinimo) $stmt->bindParam(":m", $minimo, PDO::PARAM_INT);
             return $stmt->execute();
         } catch (PDOException $e) {
             // Triggers: trg_validar_precio_positivo, trg_impedir_stock_negativo, FK inexistente

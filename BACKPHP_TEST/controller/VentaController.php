@@ -56,6 +56,22 @@ class VentaController {
         return $this->model->listarVentas($idCli);
     }
     public function detalleVenta($idVenta) { return $this->model->detalleVenta($idVenta); }
+    public function detalleCompleto($idVenta) { return $this->model->detalleCompleto($idVenta); }
+    public function pendientesPara($rol, $idUsuario) {
+        if (in_array($rol, ['Administrador','Empleado'], true)) return $this->model->listarPendientes(null);
+        $idCli = $this->model->idClienteDeUsuario($idUsuario);
+        return $idCli ? $this->model->listarPendientes($idCli) : [];
+    }
+    public function entregadasPara($rol, $idUsuario) {
+        if (in_array($rol, ['Administrador','Empleado'], true)) return $this->model->listarEntregadas(null);
+        $idCli = $this->model->idClienteDeUsuario($idUsuario);
+        return $idCli ? $this->model->listarEntregadas($idCli) : [];
+    }
+    public function facturasPara($rol, $idUsuario) {
+        if (in_array($rol, ['Administrador','Empleado'], true)) return $this->model->listarFacturas(null);
+        $idCli = $this->model->idClienteDeUsuario($idUsuario);
+        return $idCli ? $this->model->listarFacturas($idCli) : [];
+    }
     public function resumenHoyPara($rol, $idUsuario) {
         if (in_array($rol, ['Administrador','Empleado'], true)) {
             return $this->model->resumenHoy(null);

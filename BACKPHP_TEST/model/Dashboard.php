@@ -33,7 +33,11 @@ class Dashboard
         $hoy = $this->sumaPeriodo("WHERE DATE(v.Fecha_Venta) = CURDATE()");
         try {
             $pend = $this->db->query("SELECT COUNT(*) AS c FROM pedido WHERE Estado_Pedido IN ('Preparando','En camino')")->fetch(PDO::FETCH_ASSOC);
-            $stockBajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE deleted_at IS NULL AND Stock_Actual < 10")->fetch(PDO::FETCH_ASSOC);
+            try {
+                $stockBajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE deleted_at IS NULL AND Stock_Actual <= Stock_Minimo")->fetch(PDO::FETCH_ASSOC);
+            } catch (PDOException $e2) {
+                $stockBajo = $this->db->query("SELECT COUNT(*) AS c FROM producto WHERE deleted_at IS NULL AND Stock_Actual < 10")->fetch(PDO::FETCH_ASSOC);
+            }
         } catch (PDOException $e) {
             $pend = ['c' => 0]; $stockBajo = ['c' => 0];
         }

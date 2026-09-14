@@ -111,9 +111,14 @@ if (!isset($_SESSION["user"])) {
                 </div>
 
                 <div class="topbar-user">
-                    <div class="icon-badge">
+                    <?php $alertCount = $alertCount ?? 0; ?>
+                    <div class="icon-badge" id="stockBell" title="Alertas de stock bajo" style="position:relative;">
                         <i class="fa-solid fa-bell"></i>
-                        <span class="badge red">3+</span>
+                        <span class="badge red" id="stockBadge" data-count="<?php echo (int)$alertCount; ?>" style="<?php echo ((int)$alertCount > 0) ? '' : 'display:none;'; ?>"><?php echo ((int)$alertCount > 9) ? '9+' : (int)$alertCount; ?></span>
+                        <div id="stockDropdown" class="dropdown-menu-user" style="display:none;position:absolute;right:0;top:28px;background:#fff;color:#2d3748;border-radius:10px;box-shadow:0 15px 40px rgba(0,0,0,.25);width:340px;max-height:380px;overflow:auto;z-index:9999;">
+                            <div style="padding:12px 14px;font-weight:800;border-bottom:1px solid #edf2f7;"><i class="fa-solid fa-triangle-exclamation" style="color:#e53e3e;"></i> Stock bajo (<?php echo (int)$alertCount; ?>) — <a href="index.php?action=inventario&filtro=bajo" style="font-size:12px;">Ver</a></div>
+                            <div id="stockDropdownList"><div style="padding:14px;color:#718096;font-size:13px;">Cargando…</div></div>
+                        </div>
                     </div>
                     <div class="icon-badge">
                         <i class="fa-solid fa-envelope"></i>
@@ -214,9 +219,9 @@ if (!isset($_SESSION["user"])) {
                     <!-- Tarjeta stock bajo -->
                     <div class="metric-card border-blue">
                         <div class="metric-info" style="width: 100%;">
-                            <span class="metric-title text-blue">STOCK BAJO (&lt;10)</span>
+                            <span class="metric-title text-blue">STOCK BAJO (≤ MÍNIMO)</span>
                             <span class="metric-value"><?php echo (int)($dashResumen['stock_bajo'] ?? 0); ?></span>
-                            <small style="color:#858796;">productos por reponer</small>
+                            <small style="color:#858796;"><a href="index.php?action=inventario&filtro=bajo">Ver productos por reponer</a></small>
                         </div>
                         <i class="fa-solid fa-boxes-stacked metric-icon"></i>
                     </div>
@@ -412,6 +417,7 @@ if (!isset($_SESSION["user"])) {
             });
         }
     </script>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
 </body>
 
 </html>

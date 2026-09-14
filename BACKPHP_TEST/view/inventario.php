@@ -98,9 +98,36 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                     <button><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <div class="topbar-user">
-                    <div class="icon-badge">
+                    <?php $alertCount = $alertCount ?? 0; $alertItems = $alertItems ?? []; ?>
+                    <div class="icon-badge" id="stockBell" title="Alertas de stock bajo" style="position:relative;">
                         <i class="fa-solid fa-bell"></i>
-                        <span class="badge red">3+</span>
+                        <span class="badge red" id="stockBadge" data-count="<?php echo (int)$alertCount; ?>" style="<?php echo ((int)$alertCount > 0) ? '' : 'display:none;'; ?>"><?php echo ((int)$alertCount > 9) ? '9+' : (int)$alertCount; ?></span>
+                        <div id="stockDropdown" class="dropdown-menu-user" style="display:none;position:absolute;right:0;top:28px;background:#fff;color:#2d3748;border-radius:10px;box-shadow:0 15px 40px rgba(0,0,0,.25);width:340px;max-height:380px;overflow:auto;z-index:9999;">
+                            <div style="padding:12px 14px;font-weight:800;border-bottom:1px solid #edf2f7;display:flex;justify-content:space-between;align-items:center;">
+                                <span><i class="fa-solid fa-triangle-exclamation" style="color:#e53e3e;"></i> Stock bajo (<?php echo (int)$alertCount; ?>)</span>
+                                <a href="index.php?action=inventario&filtro=bajo" style="font-size:12px;">Ver bajos</a>
+                            </div>
+                            <div id="stockDropdownList">
+                                <?php if (!empty($alertItems)): ?>
+                                    <?php foreach ($alertItems as $a): ?>
+                                        <div style="padding:10px 14px;border-bottom:1px solid #edf2f7;font-size:13px;">
+                                            <div style="font-weight:700;color:#9b2c2c;"><?php echo htmlspecialchars($a['Mensaje'] ?? $a['Nombre_Producto'] ?? 'Stock bajo'); ?></div>
+                                            <div style="color:#a0aec0;font-size:12px;"><?php echo htmlspecialchars($a['Fecha_Creacion'] ?? ''); ?></div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <div style="padding:14px;color:#718096;font-size:13px;">Sin alertas pendientes.</div>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ((int)$alertCount > 0): ?>
+                            <form method="POST" action="index.php?action=inventario" style="padding:10px 14px;">
+                                <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                <input type="hidden" name="alerta_action" value="todas">
+                                <input type="hidden" name="back" value="index.php?action=inventario">
+                                <button type="submit" class="btn-crud-cancel" style="width:100%;">Marcar todas como leídas</button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <div class="icon-badge">
                         <i class="fa-solid fa-envelope"></i>
@@ -177,7 +204,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                 <input type="hidden" name="inv_action" value="save">
                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                 <input type="hidden" name="ID_Producto" id="form-id">
-                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:12px;align-items:start;">
+                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr auto;gap:12px;align-items:start;">
                                     <div>
                                         <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">NOMBRE</label>
                                         <input type="text" class="crud-input" name="Nombre_Producto" id="form-nombre" placeholder="Nombre producto" required>
@@ -189,6 +216,10 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                     <div>
                                         <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">STOCK (≥0)</label>
                                         <input type="number" min="0" class="crud-input" name="Stock_Actual" id="form-stock" value="0" required>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">STOCK MÍNIMO (RF 2.3)</label>
+                                        <input type="number" min="0" class="crud-input" name="Stock_Minimo" id="form-minimo" value="10" required>
                                     </div>
                                     <div>
                                         <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">CATEGORÍA</label>
@@ -229,7 +260,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                     <th><b>ID</b></th>
                                     <th><b>Producto</b></th>
                                     <th><b>Precio</b></th>
-                                    <th><b>Stock</b></th>
+                                    <th><b>Stock / Mín</b></th>
                                     <th><b>Categoría</b></th>
                                     <th><b>Proveedor</b></th>
                                     <th><b>Estado</b></th>
@@ -247,8 +278,8 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                             <td><strong><?php echo htmlspecialchars($row['Nombre_Producto']); ?></strong></td>
                                             <td>$<?php echo number_format($row['Precio_Actual'], 0, ',', '.'); ?></td>
                                             <td>
-                                                <?php $st = (int)$row['Stock_Actual']; ?>
-                                                <span style="background:<?php echo $st==0?'#fed7d7':($st<10?'#fefcbf':'#c6f6d5'); ?>;padding:4px 8px;border-radius:4px;"><?php echo $st; ?></span>
+                                                <?php $st = (int)$row['Stock_Actual']; $mn = (int)($row['Stock_Minimo'] ?? 10); ?>
+                                                <span style="background:<?php echo $st==0?'#fed7d7;color:#9b2c2c':($st<=$mn?'#fed7d7;color:#9b2c2c':'#c6f6d5;color:#22543d'); ?>;padding:4px 8px;border-radius:4px;font-weight:700;" title="Mínimo: <?php echo $mn; ?>"><?php echo $st; ?> / <?php echo $mn; ?></span>
                                             </td>
                                             <td><?php echo htmlspecialchars($row['Nombre_Categoria'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($row['Proveedor'] ?? '-'); ?></td>
@@ -262,7 +293,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                             <?php if ($__canEdit): ?>
                                             <td style="text-align:right;">
                                                 <button type="button" class="btn-action-edit"
-                                                    onclick="editarProducto('<?php echo $row['ID_Producto']; ?>','<?php echo htmlspecialchars($row['Nombre_Producto'], ENT_QUOTES); ?>','<?php echo $row['Precio_Actual']; ?>','<?php echo $row['Stock_Actual']; ?>','<?php echo $row['ID_Categoria']; ?>','<?php echo $row['ID_Proveedor']; ?>')">
+                                                    onclick="editarProducto('<?php echo $row['ID_Producto']; ?>','<?php echo htmlspecialchars($row['Nombre_Producto'], ENT_QUOTES); ?>','<?php echo $row['Precio_Actual']; ?>','<?php echo $row['Stock_Actual']; ?>','<?php echo $row['ID_Categoria']; ?>','<?php echo $row['ID_Proveedor']; ?>','<?php echo (int)($row['Stock_Minimo'] ?? 10); ?>')">
                                                     <i class="fa-solid fa-pen-to-square"></i> Editar
                                                 </button>
                                                 <?php if ($isAdminInv): ?>
@@ -299,6 +330,119 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                         </table>
                     </div>
                 </div>
+                <?php if ($__canEdit && ($__rol === 'Administrador')): ?>
+                <div class="crud-modern-card">
+                    <div class="crud-modern-header">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                        <span>Ajuste manual — Kardex (RF 2.9: Motivo obligatorio)</span>
+                    </div>
+                    <form action="index.php?action=inventario" method="POST" style="padding:16px;">
+                        <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                        <input type="hidden" name="inv_ajuste" value="1">
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:12px;align-items:end;">
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">PRODUCTO</label>
+                                <select class="crud-input" name="aj_producto" required>
+                                    <?php foreach (($productos ?? []) as $pr): ?>
+                                        <option value="<?php echo $pr['ID_Producto']; ?>"><?php echo htmlspecialchars('#'.$pr['ID_Producto'].' '.$pr['Nombre_Producto'].' (stock '.$pr['Stock_Actual'].')'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">TIPO</label>
+                                <select class="crud-input" name="aj_tipo" required>
+                                    <option value="Entrada">Entrada (suma)</option>
+                                    <option value="Ajuste">Ajuste (pérdida/daño/dev.)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">CANTIDAD</label>
+                                <input type="number" min="1" class="crud-input" name="aj_cantidad" value="1" required>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">MOTIVO (obligatorio)</label>
+                                <input type="text" class="crud-input" name="aj_motivo" placeholder="Ej: daño en bodega, devolución cliente…" required maxlength="255">
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <label style="font-size:12px;"><input type="checkbox" name="es_resta" value="1"> Resta</label>
+                                <button type="submit" class="btn-crud-save">Registrar</button>
+                            </div>
+                        </div>
+                        <small style="color:#a0aec0;font-size:11px;">* Entrada siempre suma. Ajuste + "Resta" (o motivo pérdida/daño) resta. Todo queda en Kardex sin edición ni borrado.</small>
+                    </form>
+                </div>
+                <?php endif; ?>
+                <div class="crud-modern-card">
+                    <div class="crud-modern-header">
+                        <i class="fa-solid fa-book"></i>
+                        <span>Kardex — trazabilidad (RF 2.7: entradas, salidas, ajustes)</span>                        <form method="GET" action="index.php" style="margin-left:auto;display:flex;gap:8px;">
+                            <input type="hidden" name="action" value="inventario">
+                            <select class="crud-input" name="kardex_prod" onchange="this.form.submit()">
+                                <option value="">Todos los productos</option>
+                                <?php foreach (($productos ?? []) as $pr): ?>
+                                    <option value="<?php echo $pr['ID_Producto']; ?>" <?php echo (isset($filtroKardex) && (string)$filtroKardex === (string)$pr['ID_Producto']) ? 'selected' : ''; ?>><?php echo htmlspecialchars('#'.$pr['ID_Producto'].' '.$pr['Nombre_Producto']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </form>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="crud-table">
+                            <thead><tr><th><b>Fecha</b></th><th><b>Producto</b></th><th><b>Tipo</b></th><th><b>Cant.</b></th><th><b>Motivo</b></th><th><b>Responsable</b></th></tr></thead>
+                            <tbody>
+                                <?php if (!empty($kardex)): ?>
+                                    <?php foreach ($kardex as $k): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($k['Fecha_Movimiento']); ?></td>
+                                        <td><strong><?php echo htmlspecialchars($k['Nombre_Producto'] ?? ''); ?></strong></td>
+                                        <td><span style="padding:4px 8px;border-radius:4px;font-weight:700;background:<?php echo $k['Tipo_Movimiento']==='Entrada'?'#c6f6d5':($k['Tipo_Movimiento']==='Salida'?'#fed7d7':'#fefcbf'); ?>;"><?php echo htmlspecialchars($k['Tipo_Movimiento']); ?></span></td>
+                                        <td style="font-weight:800;color:<?php echo ((int)$k['Cantidad'] < 0) ? '#c53030' : '#22543d'; ?>"><?php echo (int)$k['Cantidad']; ?></td>
+                                        <td><?php echo htmlspecialchars($k['Motivo']); ?></td>
+                                        <td><?php echo htmlspecialchars($k['Responsable'] ?? '—'); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="6" style="text-align:center;color:#a0aec0;padding:30px;font-style:italic;">Sin movimientos. Los ajustes y las ventas (salidas) aparecerán aquí.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php if ($__rol === 'Administrador'): ?>
+                <div class="crud-modern-card">
+                    <div class="crud-modern-header">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                        <span>Historial de correos al admin (¿sí llegó la notificación?)</span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="crud-table">
+                            <thead><tr><th><b>Fecha</b></th><th><b>Tipo</b></th><th><b>Destinatarios</b></th><th><b>Asunto</b></th><th><b>Estado</b></th><th><b>Detalle</b></th></tr></thead>
+                            <tbody>
+                                <?php $notifLog = $notifLog ?? []; ?>
+                                <?php if (!empty($notifLog)): ?>
+                                    <?php foreach ($notifLog as $nl): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($nl['Fecha']); ?></td>
+                                        <td><?php echo htmlspecialchars($nl['Tipo']); ?></td>
+                                        <td style="font-size:12px;"><?php echo htmlspecialchars($nl['Destinatarios']); ?></td>
+                                        <td><?php echo htmlspecialchars($nl['Asunto']); ?></td>
+                                        <td>
+                                            <?php if (($nl['Resultado'] ?? '') === 'ok'): ?>
+                                                <span style="background:#c6f6d5;color:#22543d;padding:4px 8px;border-radius:4px;font-weight:700;">ENVIADO</span>
+                                            <?php else: ?>
+                                                <span style="background:#fed7d7;color:#9b2c2c;padding:4px 8px;border-radius:4px;font-weight:700;">FALLÓ</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="font-size:12px;color:#718096;"><?php echo htmlspecialchars($nl['Detalle'] ?? ''); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="6" style="text-align:center;color:#a0aec0;padding:30px;font-style:italic;">Sin envíos aún. Ejecuta migrate_notif_log.sql si ves este mensaje siempre: activa el historial.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </main>
     </div>
@@ -316,13 +460,14 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 if (!userDropdownMenu.contains(e.target) && !userMenuBtn.contains(e.target)) userDropdownMenu.classList.remove('show');
             });
         }
-        function editarProducto(id, nombre, precio, stock, cat, prov) {
+        function editarProducto(id, nombre, precio, stock, cat, prov, minimo) {
             document.getElementById('form-id').value = id;
             document.getElementById('form-nombre').value = nombre;
             document.getElementById('form-precio').value = precio;
             document.getElementById('form-stock').value = stock;
             document.getElementById('form-cat').value = cat;
             document.getElementById('form-prov').value = prov;
+            if (document.getElementById('form-minimo')) document.getElementById('form-minimo').value = (minimo !== undefined ? minimo : 10);
             document.getElementById('form-card-title').innerText = "Editando: " + nombre;
             document.getElementById('btn-submit-text').innerText = "Actualizar";
             document.getElementById('btn-cancelar').style.display = 'inline-block';
@@ -333,6 +478,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
             document.getElementById('form-nombre').value = '';
             document.getElementById('form-precio').value = '';
             document.getElementById('form-stock').value = '0';
+            if (document.getElementById('form-minimo')) document.getElementById('form-minimo').value = '10';
             document.getElementById('form-card-title').innerText = "Formulario de Producto";
             document.getElementById('btn-submit-text').innerText = "Guardar";
             document.getElementById('btn-cancelar').style.display = 'none';
@@ -346,6 +492,21 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                 });
             });
         }
+        // Filtro ?filtro=bajo (desde campana / toast RF 2.3)
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('filtro') === 'bajo') {
+                document.querySelectorAll('#invTable tbody tr').forEach(tr => {
+                    const t = tr.textContent;
+                    const m = t.match(/(\d+)\s*\/\s*(\d+)/);
+                    if (m) {
+                        const st = parseInt(m[1], 10), mn = parseInt(m[2], 10);
+                        tr.style.display = (st <= mn) ? '' : 'none';
+                    }
+                });
+                if (invSearch) { invSearch.value = ''; invSearch.placeholder = 'Filtrando: stock bajo (borra para ver todo)'; }
+            }
+        })();
         // Modal personalizada ACIDO (inactivar/activar) - envía el form POST del botón
         let confirmFormInv = null;
         function askToggleInv(btn, title, message) {
@@ -368,6 +529,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
             if (e.key === 'Escape') closeAcidoModalInv();
         });
     </script>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/notif-stock.js?v=<?php echo time(); ?>"></script>
     <div id="acidoModalInv" style="display:none;position:fixed;inset:0;background:rgba(28,59,74,.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeAcidoModalInv()">
         <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
             <div style="background:linear-gradient(135deg,#1C3B4A,#004BA0);color:#fff;padding:16px 20px;display:flex;align-items:center;gap:10px;">

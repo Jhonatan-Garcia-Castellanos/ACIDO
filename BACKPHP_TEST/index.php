@@ -4,6 +4,9 @@ require_once "controller/ProductoController.php";
 require_once "controller/VentaController.php";
 require_once "controller/DashboardController.php";
 require_once "controller/PasswordResetController.php";
+require_once "controller/NotificacionController.php";
+require_once "model/AlertaStock.php";
+require_once "lib/Mailer.php";
 require_once "lib/Csrf.php";
 
 session_start();
@@ -12,6 +15,7 @@ $productoController = new ProductoController();
 $ventaController = new VentaController();
 $dashboardController = new DashboardController();
 $resetController = new PasswordResetController();
+$notifController = new NotificacionController();
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) $_SESSION['cart'] = [];
 
 // =========================================================================
@@ -25,6 +29,8 @@ $ACCESS = [
     'inventario'  => ['Administrador', 'Empleado'], // Gestion stock (sin Cliente)
     'inventario_save' => ['Administrador', 'Empleado'], // Crear/editar stock
     'inventario_estado' => ['Administrador'], // Solo Admin inactiva/activa productos
+    'notificaciones' => ['Administrador', 'Empleado'], // Campana stock bajo RF 2.3
+    'api_alertas' => ['Administrador', 'Empleado'], // Polling JSON campana
     'catalogo'    => ['Administrador', 'Empleado', 'Cliente'], // Vitrina para Cliente
     'carrito'     => ['Administrador', 'Empleado', 'Cliente'],
     'ventas'      => ['Administrador', 'Empleado', 'Cliente'], // Admin/Empl ven todo, Cliente solo suyas
@@ -418,6 +424,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["user_toggle"])) {
     header("Location: index.php?action=crud");
     exit();
 }
+// 2b. Alertas stock bajo: marcar leída(s) = Admin/Empleado vía POST+CSRF (RF 2.3).
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["alerta_action"])) {
+    requireRole('notificaciones');
+    checkCsrf();
+    try {
+        $al = new AlertaStock();
+        if ($_POST["alerta_action"] === "leida" && ctype_digit((string)($_POST["id_alerta"] ?? ''))) {
+            $al->marcarLeida($_POST["id_alerta"]);
+        } elseif ($_POST["alerta_action"] === "todas") {
+            $al->marcarTodas();
+        }
+    } catch (Exception $e) {}
+    $back = $_POST["back"] ?? 'index.php?action=inventario';
+    header("Location: " . $back);
+    exit();
+}
 // Compat: toggle/delete por GET ya no ejecutan (antes era hueco CSRF) -> redirige sin cambios
 if (isset($_GET["toggle_id"]) || isset($_GET["delete_id"])) {
     requireRole('crud_delete');
@@ -426,6 +448,118 @@ if (isset($_GET["toggle_id"]) || isset($_GET["delete_id"])) {
 }
 
 if (isset($_GET["action"])) {
+
+    // ============ API JSON NOTIFICACIONES (solo Admin/Empleado) ============
+    // GET api_alertas: campana stock bajo (polling 60s). RF 2.3.
+    if ($_GET["action"] === "api_alertas") {
+        requireLogin();
+        syncRoleFromDb();
+        if (!in_array(currentRole(), $ACCESS['api_alertas'] ?? [], true)) {
+            while (ob_get_level()) { ob_end_clean(); }
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'count' => 0, 'items' => []]);
+            exit();
+        }
+        $out = $notifController->resumen();
+        // Email al admin SOLO por episodios nuevos (dedup 24h en sync).
+        if (!empty($out['nuevas'])) {
+            $em = $notifController->notificar('stock');
+            $out['email'] = $em;
+        }
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode($out);
+        exit();
+    }
+
+    // GET api_kardex: ?limit=50 & ?producto=ID. Solo lectura. RF 2.7.
+    if ($_GET["action"] === "api_kardex") {
+        requireLogin();
+        syncRoleFromDb();
+        if (!in_array(currentRole(), $ACCESS['api_alertas'] ?? [], true)) {
+            while (ob_get_level()) { ob_end_clean(); }
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'forbidden']);
+            exit();
+        }
+        $lim = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
+        $prod = $_GET['producto'] ?? null;
+        $out = $notifController->kardex($lim, $prod);
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode($out);
+        exit();
+    }
+
+    // GET api_notif_log: historial de correos (ok/fallo). Solo Admin/Empleado.
+    if ($_GET["action"] === "api_notif_log") {
+        requireLogin();
+        syncRoleFromDb();
+        if (!in_array(currentRole(), $ACCESS['api_alertas'] ?? [], true)) {
+            while (ob_get_level()) { ob_end_clean(); }
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'forbidden']);
+            exit();
+        }
+        $limLog = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+        $out = $notifController->historial($limLog);
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode($out);
+        exit();
+    }
+
+    // POST api_alertas_leida: JSON o form {csrf_token, id_alerta} o {csrf_token, todas:true}.
+    if ($_GET["action"] === "api_alertas_leida" && $_SERVER["REQUEST_METHOD"] === "POST") {
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        if (!isLogged()) { echo json_encode(['success' => false, 'message' => 'login requerido']); exit(); }
+        syncRoleFromDb();
+        if (!in_array(currentRole(), $ACCESS['api_alertas'] ?? [], true)) {
+            echo json_encode(['success' => false, 'message' => 'forbidden']); exit();
+        }
+        $body = $_POST;
+        if (empty($body)) {
+            $raw = file_get_contents('php://input');
+            $j = json_decode((string)$raw, true);
+            if (is_array($j)) $body = $j;
+        }
+        if (!Csrf::validate($body['csrf_token'] ?? null)) {
+            echo json_encode(['success' => false, 'message' => 'CSRF inválido. Recarga e intenta de nuevo.']); exit();
+        }
+        $todas = !empty($body['todas']);
+        $out = $notifController->marcar($body['id_alerta'] ?? null, $todas);
+        echo json_encode($out);
+        exit();
+    }
+
+    // POST api_notificar: JSON o form {csrf_token, tipo, datos}.
+    // tipo: stock | stock_forzar | kardex | resumen. Envía correo al admin.
+    if ($_GET["action"] === "api_notificar" && $_SERVER["REQUEST_METHOD"] === "POST") {
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        if (!isLogged()) { echo json_encode(['success' => false, 'message' => 'login requerido']); exit(); }
+        syncRoleFromDb();
+        if (!in_array(currentRole(), $ACCESS['api_alertas'] ?? [], true)) {
+            echo json_encode(['success' => false, 'message' => 'forbidden']); exit();
+        }
+        $body = $_POST;
+        if (empty($body)) {
+            $raw = file_get_contents('php://input');
+            $j = json_decode((string)$raw, true);
+            if (is_array($j)) $body = $j;
+        }
+        if (!Csrf::validate($body['csrf_token'] ?? null)) {
+            echo json_encode(['success' => false, 'message' => 'CSRF inválido. Recarga e intenta de nuevo.']); exit();
+        }
+        $u = $_SESSION["user"] ?? [];
+        $resp = $u["nombre_completo"] ?? $u["nombre"] ?? $u["Email"] ?? 'API';
+        $datos = $body['datos'] ?? [];
+        if (!is_array($datos)) $datos = [];
+        $out = $notifController->notificar($body['tipo'] ?? '', $datos, $resp);
+        echo json_encode($out);
+        exit();
+    }
 
     if ($_GET["action"] === "logout") {
         $_SESSION = [];
@@ -471,6 +605,19 @@ if (isset($_GET["action"])) {
     if ($_GET["action"] === "dashboard") {
         requireRole('dashboard');
         $dashData = $dashboardController->datos();
+        try {
+            $alDash = new AlertaStock();
+            $nuevasDash = $alDash->sincronizarBajoMinimo();
+            $alertCount = $alDash->contarNoLeidas();
+            $alertItems = $alDash->listarNoLeidas(10);
+            if (!empty($nuevasDash)) {
+                try {
+                    $admD = $alDash->emailsAdmins();
+                    $mmD = new Mailer();
+                    if (!empty($admD) && $mmD->isConfigured()) $mmD->enviarStockBajo($admD, $nuevasDash);
+                } catch (Exception $eDash2) {}
+            }
+        } catch (Exception $e) { $alertCount = 0; $alertItems = []; }
         require_once "view/dashboard.php";
         exit();
     }
@@ -484,8 +631,7 @@ if (isset($_GET["action"])) {
 
     if ($_GET["action"] === "inventario") {
         // Guardar producto (solo Admin/Empleado)
-        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inv_action"]) && $_POST["inv_action"] === "save") {
-            requireRole('inventario_save');
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inv_action"]) && $_POST["inv_action"] === "save") {            requireRole('inventario_save');
             checkCsrf();
             $ok = $productoController->guardar($_POST);
             if (!$ok) {
@@ -507,6 +653,44 @@ if (isset($_GET["action"])) {
             header("Location: index.php?action=inventario");
             exit();
         }
+        // Ajuste manual Kardex (solo Admin, RF 2.9: Motivo obligatorio + auditoría).
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inv_ajuste"])) {
+            requireRole('inventario_estado');
+            checkCsrf();
+            $uidAj = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
+            $res = $productoController->ajustar(
+                $_POST["aj_producto"] ?? '',
+                $_POST["aj_tipo"] ?? 'Ajuste',
+                $_POST["aj_cantidad"] ?? 0,
+                $_POST["aj_motivo"] ?? '',
+                $uidAj
+            );
+            if (!empty($res['ok'])) {
+                // Email al admin por movimiento Kardex (RF 2.7/2.9, best-effort).
+                try {
+                    $alK = new AlertaStock();
+                    $admK = $alK->emailsAdmins();
+                    $mmK = new Mailer();
+                    if (!empty($admK) && $mmK->isConfigured()) {
+                        $uK = $_SESSION["user"] ?? [];
+                        $respK = $uK["nombre_completo"] ?? $uK["nombre"] ?? $uK["Email"] ?? 'Administrador';
+                        $mmK->enviarMovimientoKardex($admK, [
+                            'Producto' => $res['producto'] ?? ('ID ' . ($_POST["aj_producto"] ?? '')),
+                            'Tipo' => $res['tipo'] ?? ($_POST["aj_tipo"] ?? 'Ajuste'),
+                            'Cantidad' => (!empty($res['resta']) ? -1 : 1) * (int)($res['cantidad'] ?? $_POST["aj_cantidad"] ?? 0),
+                            'Motivo' => $res['motivo'] ?? ($_POST["aj_motivo"] ?? ''),
+                            'Responsable' => $respK,
+                            'StockNuevo' => $res['stock_nuevo'] ?? null,
+                            'StockMinimo' => $res['stock_minimo'] ?? null,
+                        ]);
+                    }
+                } catch (Exception $eK) {}
+                header("Location: index.php?action=inventario&status=" . urlencode($res['message']));
+            } else {
+                header("Location: index.php?action=inventario&error=" . urlencode($res['message'] ?? 'No se pudo registrar'));
+            }
+            exit();
+        }
         // Compat: inv_toggle por GET ya no ejecuta (hueco CSRF) -> redirige sin cambios
         if (isset($_GET["inv_toggle"])) {
             requireRole('inventario_estado');
@@ -518,6 +702,25 @@ if (isset($_GET["action"])) {
         $categorias = $productoController->categorias();
         $proveedores = $productoController->proveedores();
         $resumen = $productoController->resumen();
+        try {
+            $alInv = new AlertaStock();
+            $nuevasInv = $alInv->sincronizarBajoMinimo();
+            $alertCount = $alInv->contarNoLeidas();
+            $alertItems = $alInv->listarNoLeidas(10);
+            $stockBajoLista = $alInv->listarStockBajo(50);
+            if (!empty($nuevasInv)) {
+                try {
+                    $admI = $alInv->emailsAdmins();
+                    $mmI = new Mailer();
+                    if (!empty($admI) && $mmI->isConfigured()) $mmI->enviarStockBajo($admI, $nuevasInv);
+                } catch (Exception $eInv2) {}
+            }
+        } catch (Exception $e) { $alertCount = 0; $alertItems = []; $stockBajoLista = []; }
+        $filtroKardex = (isset($_GET['kardex_prod']) && ctype_digit((string)$_GET['kardex_prod'])) ? $_GET['kardex_prod'] : null;
+        try { $kardex = $productoController->kardex(100, $filtroKardex); }
+        catch (Exception $e) { $kardex = []; }
+        try { $notifLog = $notifController->historial(20); $notifLog = $notifLog['items'] ?? []; }
+        catch (Exception $e) { $notifLog = []; }
         require_once "view/inventario.php";
         exit();
     }
@@ -579,6 +782,17 @@ if (isset($_GET["action"])) {
         $uid = $_SESSION["user"]["ID_Usuario"] ?? $_SESSION["user"]["id"] ?? null;
         $ventas = $ventaController->listarPara(currentRole(), $uid);
         $resumenHoy = $ventaController->resumenHoyPara(currentRole(), $uid);
+        $tabVentas = $_GET['tab'] ?? 'ventas';
+        if (!in_array($tabVentas, ['ventas','pendientes','entregadas','facturas'], true)) $tabVentas = 'ventas';
+        $pendientes = $ventaController->pendientesPara(currentRole(), $uid);
+        $entregadas = $ventaController->entregadasPara(currentRole(), $uid);
+        $facturas = $ventaController->facturasPara(currentRole(), $uid);
+        // Detalle RF 2.2: items + comprador por venta listada (límite para no sobrecargar).
+        $detalles = [];
+        foreach (array_slice($ventas, 0, 100) as $vx) {
+            try { $detalles[$vx['ID_Venta']] = $ventaController->detalleCompleto($vx['ID_Venta']); }
+            catch (Exception $e) {}
+        }
         require_once "view/ventas.php";
         exit();
     }

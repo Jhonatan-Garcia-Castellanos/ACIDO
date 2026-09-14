@@ -8,12 +8,13 @@ class Conexion {
 
     public function __construct() {
         $host    = Env::get("DB_HOST", "localhost");
+        $port    = (int)Env::get("DB_PORT", 3306);
         $dbname  = Env::get("DB_NAME", "proyecto_acido");
         $user    = Env::get("DB_USER", "root");
         $pass    = Env::get("DB_PASS", "");
         $charset = Env::get("DB_CHARSET", "utf8mb4");
         try {
-            $this->conn = new PDO("mysql:host={$host};dbname={$dbname};charset={$charset}", $user, $pass);
+            $this->conn = new PDO("mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}", $user, $pass);
             // Corrección: PDO con mayúsculas sostenidas
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
