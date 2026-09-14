@@ -1,3 +1,7 @@
 # Secretos locales: cada integrante usa su propio .env (ver .env.example)
 .env
 
+# Fotos de perfil subidas por usuarios (binarios + privacidad: no van al repo)
+public/img/perfiles/*
+!public/img/perfiles/.gitkeep
+

@@ -91,3 +91,75 @@
 @media (max-width: 900px) {
     .charts-grid { grid-template-columns: 1fr !important; }
 }
+
+/* ===================================================
+   DINAMISMO: animaciones, badge EN VIVO y rangos
+=================================================== */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.anim-card {
+    opacity: 0;
+    animation: fadeUp .5s ease forwards;
+}
+.metric-card {
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+.metric-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 2rem 0 rgba(58, 59, 69, 0.18) !important;
+}
+.metric-card:hover .metric-icon {
+    color: #4e73df;
+    transform: scale(1.15);
+}
+/* Tarjetas clicables hacia su página de origen */
+[data-href] { cursor: pointer; }
+[data-href]:hover .metric-title::after {
+    content: '  →';
+    font-weight: 800;
+}
+.metric-icon { transition: transform .18s ease, color .18s ease; }
+
+.live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #1cc88a;
+    background: #e6f9f0;
+    border: 1px solid #b7e9d2;
+    padding: 4px 10px;
+    border-radius: 20px;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1cc88a;
+    animation: pulseDot 1.6s ease-in-out infinite;
+}
+@keyframes pulseDot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: .45; }
+}
+
+.range-group { display: inline-flex; gap: 4px; }
+.range-btn {
+    border: 1px solid #d1d3e2;
+    background: #fff;
+    color: #858796;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.range-btn:hover { border-color: #4e73df; color: #4e73df; }
+.range-btn.active { background: #4e73df; border-color: #4e73df; color: #fff; }

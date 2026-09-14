@@ -15,7 +15,6 @@ if (!isset($tabVentas)) { $tabVentas = $_GET['tab'] ?? 'ventas'; }
 if (!isset($pendientes)) { $pendientes = []; }
 if (!isset($entregadas)) { $entregadas = []; }
 if (!isset($facturas)) { $facturas = []; }
-if (!isset($detalles)) { $detalles = []; }
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -57,6 +56,7 @@ if (!isset($detalles)) { $detalles = []; }
             <header class="topbar">
                 <div class="search-bar"><input type="text" id="vSearch" placeholder="Buscar venta, cliente, factura..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
                 <div class="topbar-user">
+                    <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
                     <div class="icon-badge">
                         <i class="fa-solid fa-bell"></i>
                         <span class="badge red">3+</span>
@@ -96,17 +96,17 @@ if (!isset($detalles)) { $detalles = []; }
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px;">
                     <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #3182ce;">
                         <small style="color:#4a5568;font-weight:700;"><?php echo $__esGest?'GANANCIAS HOY':'MIS COMPRAS HOY'; ?></small>
-                        <div style="font-size:24px;font-weight:800;color:#004BA0;">$<?php echo number_format($resumenHoy['ganancias'] ?? 0, 0, ',', '.'); ?></div>
+                        <div class="count-up" data-money="1" data-value="<?php echo (float)($resumenHoy['ganancias'] ?? 0); ?>" style="font-size:24px;font-weight:800;color:#004BA0;">$<?php echo number_format($resumenHoy['ganancias'] ?? 0, 0, ',', '.'); ?></div>
                         <small style="color:#a0aec0;">Suma automática de lo vendido hoy. Se reinicia cada día.</small>
                     </div>
                     <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #38a169;">
                         <small style="color:#4a5568;font-weight:700;">VENTAS HOY</small>
-                        <div style="font-size:24px;font-weight:800;"><?php echo (int)($resumenHoy['ventas'] ?? 0); ?></div>
+                        <div class="count-up" data-value="<?php echo (int)($resumenHoy['ventas'] ?? 0); ?>" style="font-size:24px;font-weight:800;"><?php echo (int)($resumenHoy['ventas'] ?? 0); ?></div>
                         <small style="color:#a0aec0;">N° de ventas con fecha de hoy.</small>
                     </div>
                     <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #d69e2e;">
                         <small style="color:#4a5568;font-weight:700;">TICKET PROMEDIO HOY</small>
-                        <div style="font-size:24px;font-weight:800;">$<?php echo number_format($resumenHoy['ticket'] ?? 0, 0, ',', '.'); ?></div>
+                        <div class="count-up" data-money="1" data-value="<?php echo (float)($resumenHoy['ticket'] ?? 0); ?>" style="font-size:24px;font-weight:800;">$<?php echo number_format($resumenHoy['ticket'] ?? 0, 0, ',', '.'); ?></div>
                         <small style="color:#a0aec0;">Promedio por venta de hoy.</small>
                     </div>
                 </div>
@@ -188,29 +188,16 @@ if (!isset($detalles)) { $detalles = []; }
                             <thead><tr><th>ID Venta</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Pago</th><th>Factura</th><th>Detalle</th></tr></thead>
                             <tbody>
                                 <?php if (!empty($ventas)): ?>
-                                    <?php foreach ($ventas as $v): $d = $detalles[$v['ID_Venta']] ?? ['items'=>[],'cliente'=>[]]; $cli = $d['cliente']; ?>
+                                    <?php foreach ($ventas as $v): ?>
                                     <tr>
                                         <td style="font-weight:bold;">#<?php echo $v['ID_Venta']; ?></td>
                                         <td><?php echo htmlspecialchars($v['Fecha_Venta']); ?></td>
                                         <td><?php echo htmlspecialchars($v['ClienteEmail'] ?? ('Cli '.$v['ID_Cliente'])); ?></td>
                                         <td><?php echo (int)$v['Items']; ?></td>
                                         <td><strong>$<?php echo number_format($v['Total'],0,',','.'); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($v['Metodo'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($v['Metodo'] ?? '-'); ?><?php if (!empty($v['Entidad'])) echo ' · ' . htmlspecialchars($v['Entidad']); ?></td>
                                         <td><code style="background:#edf2f7;padding:4px 8px;border-radius:4px;"><?php echo htmlspecialchars($v['Factura'] ?? '—'); ?></code></td>
-                                        <td><button type="button" class="btn-action-edit" onclick="document.getElementById('det-<?php echo $v['ID_Venta']; ?>').style.display = (document.getElementById('det-<?php echo $v['ID_Venta']; ?>').style.display==='none'?'table-row':'none')">Ver</button></td>
-                                    </tr>
-                                    <tr id="det-<?php echo $v['ID_Venta']; ?>" style="display:none;background:#f7fafc;">
-                                        <td colspan="8">
-                                            <div style="font-size:12px;color:#4a5568;margin-bottom:8px;"><b>Comprador:</b> <?php echo htmlspecialchars(trim(($cli['Nombres'] ?? '').' '.($cli['Apellidos'] ?? ''))); ?> · Doc: <?php echo htmlspecialchars($cli['Documento'] ?? '—'); ?> · Usuario: <?php echo htmlspecialchars($cli['Seudonimo'] ?? $cli['Email'] ?? '—'); ?> · Tel: <?php echo htmlspecialchars($cli['Telefono'] ?? '—'); ?></div>
-                                            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                                            <?php foreach ($d['items'] as $it): ?>
-                                                <div style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;">
-                                                    <?php if (!empty($it['Imagen_URL'])): ?><img src="<?php echo htmlspecialchars($it['Imagen_URL']); ?>" style="width:36px;height:36px;object-fit:cover;border-radius:6px;" alt=""><?php endif; ?>
-                                                    <div style="font-size:12px;"><b>#<?php echo $it['ID_Producto']; ?> <?php echo htmlspecialchars($it['Nombre_Producto']); ?></b><br>x<?php echo (int)$it['Cantidad']; ?> · $<?php echo number_format($it['Precio_Venta_Historico'],0,',','.'); ?></div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                            </div>
-                                        </td>
+                                        <td><button type="button" class="btn-action-edit btn-detalle" data-id="<?php echo $v['ID_Venta']; ?>" title="Ver productos"><i class="fa-solid fa-eye"></i></button></td>
                                     </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
@@ -224,15 +211,38 @@ if (!isset($detalles)) { $detalles = []; }
             </div>
         </main>
     </div>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        const sb=document.getElementById('sidebar'),tb=document.getElementById('toggleSidebar');
-        if(tb&&sb)tb.addEventListener('click',()=>sb.classList.toggle('collapsed'));
-        const ub=document.getElementById('userMenuBtn'),um=document.getElementById('userDropdownMenu');
-        if(ub&&um){ub.addEventListener('click',(e)=>{e.stopPropagation();um.classList.toggle('show');});document.addEventListener('click',(e)=>{if(!um.contains(e.target)&&!ub.contains(e.target))um.classList.remove('show');});}
         const s=document.getElementById('vSearch');
         if(s)s.addEventListener('input',function(){
             const q=this.value.toLowerCase();
-            document.querySelectorAll('#ventasTable tbody tr').forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none';});
+            document.querySelectorAll('#ventasTable tbody tr:not(.detail-row)').forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none';});
+        });
+        // Filas expandibles: ver productos de la venta sin recargar
+        document.querySelectorAll('.btn-detalle').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const tr = btn.closest('tr');
+                const next = tr.nextElementSibling;
+                if (next && next.classList.contains('detail-row')) { next.remove(); return; }
+                btn.disabled = true;
+                try {
+                    const res = await fetch('index.php?action=venta_detalle&id=' + btn.dataset.id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const d = await res.json();
+                    const det = document.createElement('tr');
+                    det.className = 'detail-row';
+                    if (d.success && d.items.length) {
+                        const lis = d.items.map(it => {
+                            const dv = document.createElement('div'); dv.textContent = it.Nombre_Producto || '';
+                            return '<li>' + dv.innerHTML + ' × ' + it.Cantidad + ' — $' + Number(it.Precio_Venta_Historico).toLocaleString('es-CO') + '</li>';
+                        }).join('');
+                        det.innerHTML = '<td colspan="8"><ul style="margin:4px 0;padding-left:18px;">' + lis + '</ul></td>';
+                    } else {
+                        det.innerHTML = '<td colspan="8" style="color:#a0aec0;">Sin detalle disponible.</td>';
+                    }
+                    tr.after(det);
+                } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
+                btn.disabled = false;
+            });
         });
     </script>
 </body>

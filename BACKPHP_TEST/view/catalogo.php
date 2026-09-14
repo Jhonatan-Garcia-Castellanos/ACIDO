@@ -74,6 +74,7 @@ if (!isset($items)) { $items = []; }
                     <button><i class="fa-solid fa-magnifying-glass"></i></button>
                 </div>
                 <div class="topbar-user">
+                    <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
                     <div class="icon-badge">
                         <i class="fa-solid fa-bell"></i>
                         <span class="badge red">3+</span>
@@ -119,22 +120,22 @@ if (!isset($items)) { $items = []; }
                 <?php else: ?>
                 <div id="catGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
                     <?php foreach ($items as $it): ?>
-                    <div class="crud-modern-card" style="margin:0;overflow:hidden;">
-                        <div style="height:150px;background:#f8f9fc;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    <div class="crud-modern-card" style="margin:0;overflow:hidden;display:flex;flex-direction:column;">
+                        <div style="height:150px;background:#f8f9fc;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
                             <?php if (!empty($it['Imagen_URL'])): ?>
                                 <img src="<?php echo htmlspecialchars($it['Imagen_URL']); ?>" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
                             <?php else: ?>
                                 <i class="fa-solid fa-shirt" style="font-size:48px;color:#cbd5e0;"></i>
                             <?php endif; ?>
                         </div>
-                        <div style="padding:14px;">
+                        <div style="padding:14px;display:flex;flex-direction:column;flex:1;">
                             <div style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;"><?php echo htmlspecialchars($it['Nombre_Categoria'] ?? 'General'); ?></div>
-                            <div style="font-weight:800;font-size:15px;margin:4px 0;"><?php echo htmlspecialchars($it['Nombre_Producto']); ?></div>
+                            <div style="font-weight:800;font-size:15px;margin:4px 0;min-height:44px;"><?php echo htmlspecialchars($it['Nombre_Producto']); ?></div>
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
                                 <span style="font-weight:800;color:#004BA0;">$<?php echo number_format($it['Precio_Actual'], 0, ',', '.'); ?></span>
                                 <span style="font-size:11px;background:#c6f6d5;color:#22543d;padding:4px 8px;border-radius:12px;font-weight:700;">Stock <?php echo (int)$it['Stock_Actual']; ?></span>
                             </div>
-                            <form action="index.php?action=catalogo" method="POST" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+                            <form action="index.php?action=catalogo" method="POST" class="ajax-cart-form" data-nombre="<?php echo htmlspecialchars($it['Nombre_Producto'], ENT_QUOTES); ?>" style="display:flex;gap:8px;margin-top:auto;padding-top:10px;align-items:center;">
                                 <input type="hidden" name="cart_action" value="add">
                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
@@ -149,20 +150,34 @@ if (!isset($items)) { $items = []; }
             </div>
         </main>
     </div>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        const sidebar = document.getElementById('sidebar');
-        const tb = document.getElementById('toggleSidebar');
-        if (tb && sidebar) tb.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
-        const ub = document.getElementById('userMenuBtn'), um = document.getElementById('userDropdownMenu');
-        if (ub && um) {
-            ub.addEventListener('click', (e) => { e.stopPropagation(); um.classList.toggle('show'); });
-            document.addEventListener('click', (e) => { if (!um.contains(e.target) && !ub.contains(e.target)) um.classList.remove('show'); });
-        }
         const s = document.getElementById('catSearch');
         if (s) s.addEventListener('input', function() {
             const q = this.value.toLowerCase();
             document.querySelectorAll('#catGrid > div').forEach(d => {
                 d.style.display = d.textContent.toLowerCase().includes(q) ? '' : 'none';
+            });
+        });
+        // Agregar al carrito sin recargar: actualiza badges + toast
+        document.querySelectorAll('.ajax-cart-form').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = f.querySelector('button[type=submit]');
+                if (btn) btn.disabled = true;
+                try {
+                    const res = await fetch(f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const d = await res.json();
+                    if (d.success) {
+                        window.updateCartBadge(d.cartCount);
+                        window.acidoToast('Agregado: ' + (f.dataset.nombre || 'producto'), 'ok');
+                    } else {
+                        window.acidoToast('No se pudo agregar', 'error');
+                    }
+                } catch (err) {
+                    window.acidoToast('Sin conexión, intenta de nuevo', 'error');
+                }
+                if (btn) btn.disabled = false;
             });
         });
     </script>

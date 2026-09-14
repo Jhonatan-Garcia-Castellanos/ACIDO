@@ -41,10 +41,69 @@ class VentaController {
     public function detalle() { return $this->model->detalleCarrito($this->cart()); }
 
     // ---- Ventas ----
-    public function checkout($idUsuario, $idMetodo) {
-        $res = $this->model->checkout($idUsuario, $this->cart(), $idMetodo);
+    /**
+     * Checkout con detalle de pago (banco/entidad + número).
+     * Validaciones: tarjeta 13-19 dígitos + Luhn; cuenta/celular 7-20 dígitos.
+     * El número solo se guarda enmascarado (nunca el número completo).
+     */
+    public function checkout($idUsuario, $idMetodo, $detalle = []) {
+        $detalle = is_array($detalle) ? $detalle : [];
+        $metodos = $this->model->metodosPago();
+        $tipoMetodo = '';
+        $tieneLogo = false;
+        foreach ($metodos as $m) {
+            if ((string)$m['ID_Metodo'] === (string)$idMetodo) {
+                $tipoMetodo = $m['Tipo_Metodo'];
+                $tieneLogo = !empty($m['Logo']);
+                break;
+            }
+        }
+        if ($tipoMetodo === '') return ['error' => 'Selecciona un método de pago.'];
+
+        $entidad = trim($detalle['entidad'] ?? '');
+        if ($entidad === '') $entidad = $tipoMetodo;
+
+        $tipo = strtolower($tipoMetodo);
+        $esTarjeta = strpos($tipo, 'tarjeta') !== false || strpos($tipo, 'visa') !== false || strpos($tipo, 'card') !== false;
+
+        if ($esTarjeta) {
+            $num = preg_replace('/\D+/', '', (string)($detalle['numero_tarjeta'] ?? ''));
+            if (strlen($num) < 13 || strlen($num) > 19) {
+                return ['error' => 'Número de tarjeta inválido (debe tener entre 13 y 19 dígitos).'];
+            }
+            if (!$this->luhn($num)) {
+                return ['error' => 'El número de tarjeta no es válido (falla el dígito de verificación).'];
+            }
+            $referencia = '•••• •••• •••• ' . substr($num, -4);
+        } elseif ($tieneLogo) {
+            $num = preg_replace('/\D+/', '', (string)($detalle['cuenta'] ?? ''));
+            if (strlen($num) < 7 || strlen($num) > 20) {
+                return ['error' => 'Número de cuenta/celular inválido (7 a 20 dígitos).'];
+            }
+            $referencia = '•••••• ' . substr($num, -4);
+        } else {
+            $referencia = 'Pago en ' . $tipoMetodo;
+        }
+
+        $res = $this->model->checkout($idUsuario, $this->cart(), $idMetodo, [
+            'entidad' => $entidad,
+            'referencia' => $referencia,
+        ]);
         if (isset($res['ID_Venta'])) $this->vaciar();
         return $res;
+    }
+
+    /** Verificación Luhn (dígito de control de tarjetas VISA/Mastercard). */
+    private function luhn($num) {
+        $sum = 0;
+        $alt = false;
+        for ($i = strlen($num) - 1; $i >= 0; $i--) {
+            $d = (int)$num[$i];
+            if ($alt) { $d *= 2; if ($d > 9) $d -= 9; }
+            $sum += $d;
+            $alt = !$alt;
+        }
+        return ($sum % 10) === 0;
     }
     public function metodos() { return $this->model->metodosPago(); }
     public function listarPara($rol, $idUsuario) {

@@ -126,6 +126,7 @@ if (!isset($registros)) {
                 </div>
 
                 <div class="topbar-user">
+                    <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
                     <div class="icon-badge">
                         <i class="fa-solid fa-bell"></i>
                         <span class="badge red">3+</span>
@@ -269,9 +270,10 @@ if (!isset($registros)) {
                         <div class="crud-modern-header">
                             <i class="fa-solid fa-table-list"></i>
                             <span>Usuarios Registrados en el Sistema</span>
+                            <input type="text" id="crudSearch" placeholder="Buscar correo, nombre, documento..." class="crud-input" style="margin-left:auto;max-width:260px;">
                         </div>
                         <div style="overflow-x: auto;">
-                            <table class="crud-table">
+                            <table class="crud-table" id="crudTable">
                                 <thead>
                                     <tr>
                                         <th><b>ID_Usuario</b></th>
@@ -379,25 +381,8 @@ if (!isset($registros)) {
         </main>
     </div>
 
+    <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        // LÓGICA PARA COLAPSAR Y EXPANDIR EL SIDEBAR
-        const sidebar = document.getElementById('sidebar');
-        const toggleSidebarBtn = document.getElementById('toggleSidebar');
-
-        if (toggleSidebarBtn && sidebar) {
-            toggleSidebarBtn.addEventListener('click', () => {
-                sidebar.classList.toggle('collapsed');
-            });
-        }
-
-        function toggleSubmenu(button) {
-            const dropdown = button.parentElement;
-            if (sidebar.classList.contains('collapsed')) {
-                sidebar.classList.remove('collapsed');
-            }
-            dropdown.classList.toggle('open');
-        }
-
         function editarRegistro(id, email, rol, nombres, apellidos, telefono, documento) {
             document.getElementById('form-title-text').innerText = "MODIFICAR USUARIO";
             document.getElementById('form-card-title').innerText = "Editando a " + email;
@@ -438,23 +423,6 @@ if (!isset($registros)) {
             document.getElementById('btn-cancelar').style.display = 'none';
         }
 
-        // Menú desplegable de usuario en la topbar
-        const userMenuBtn = document.getElementById('userMenuBtn');
-        const userDropdownMenu = document.getElementById('userDropdownMenu');
-
-        if (userMenuBtn && userDropdownMenu) {
-            userMenuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                userDropdownMenu.classList.toggle('show');
-            });
-
-            document.addEventListener('click', (e) => {
-                if (!userDropdownMenu.contains(e.target) && !userMenuBtn.contains(e.target)) {
-                    userDropdownMenu.classList.remove('show');
-                }
-            });
-        }
-
         // Modal personalizada ACIDO (inactivar/activar) - envía el form POST del botón
         let confirmForm = null;
         function askToggleUser(btn, title, message) {
@@ -475,6 +443,15 @@ if (!isset($registros)) {
         }
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeAcidoModal();
+        });
+
+        // Buscador en vivo de usuarios
+        const cs = document.getElementById('crudSearch');
+        if (cs) cs.addEventListener('input', function() {
+            const q = this.value.toLowerCase();
+            document.querySelectorAll('#crudTable tbody tr').forEach(tr => {
+                tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+            });
         });
     </script>
     <div id="acidoModal" style="display:none;position:fixed;inset:0;background:rgba(28,59,74,.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeAcidoModal()">

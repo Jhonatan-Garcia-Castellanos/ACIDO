@@ -33,7 +33,7 @@ DROP DATABASE IF EXISTS proyecto_acido;
 CREATE DATABASE proyecto_acido DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE proyecto_acido;
 
--- ==============================================================================
+-- ============================================================================== 
 -- 1. TABLAS BASE Y ESTRUCTURA RELACIONAL (3NF)
 -- ==============================================================================
 
@@ -218,16 +218,22 @@ CREATE TABLE detalle_venta (
   FOREIGN KEY (ID_Producto) REFERENCES producto(ID_Producto)
 ) ENGINE=InnoDB;
 
+-- Logo: selector de medios con logos en carrito (commit 7b6771b). NULL = icono genérico.
 CREATE TABLE metodo_pago (
   ID_Metodo INT AUTO_INCREMENT PRIMARY KEY,
-  Tipo_Metodo VARCHAR(50) NOT NULL
+  Tipo_Metodo VARCHAR(50) NOT NULL,
+  Logo VARCHAR(512) NULL
 ) ENGINE=InnoDB;
 
+-- Entidad_Bancaria/Numero_Referencia: checkout con tarjeta/cuenta (commit 7b6771b).
+-- La referencia se guarda enmascarada (nunca el número completo).
 CREATE TABLE pago (
   ID_Pago INT AUTO_INCREMENT PRIMARY KEY,
   ID_Venta INT NOT NULL,
   ID_Metodo INT NOT NULL,
   Monto_Pagado DECIMAL(10,2) NOT NULL,
+  Entidad_Bancaria VARCHAR(100) NULL,
+  Numero_Referencia VARCHAR(100) NULL,
   Fecha_Pago DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (ID_Venta) REFERENCES venta(ID_Venta),
   FOREIGN KEY (ID_Metodo) REFERENCES metodo_pago(ID_Metodo)
@@ -876,12 +882,15 @@ INSERT INTO categoria (Nombre_Categoria) VALUES
 INSERT INTO proveedor (Nombre_Empresa, ID_Ciudad) VALUES
   ('Textiles ACIDO S.A.S.', 1);
 
-INSERT INTO metodo_pago (Tipo_Metodo) VALUES
-  ('Efectivo'),
-  ('Nequi'),
-  ('Daviplata'),
-  ('Transferencia bancaria'),
-  ('Contra entrega');
+-- Logos en public/img/pagos/*.svg (NULL = icono genérico, sin pedir datos extra)
+INSERT INTO metodo_pago (Tipo_Metodo, Logo) VALUES
+  ('Efectivo', NULL),
+  ('Nequi', '/ACIDO/BACKPHP_TEST/public/img/pagos/nequi.svg'),
+  ('Daviplata', '/ACIDO/BACKPHP_TEST/public/img/pagos/daviplata.svg'),
+  ('Transferencia bancaria', '/ACIDO/BACKPHP_TEST/public/img/pagos/transferencia.svg'),
+  ('Contra entrega', NULL),
+  ('Tarjeta de crédito / débito', '/ACIDO/BACKPHP_TEST/public/img/pagos/tarjeta.svg'),
+  ('Bancolombia', '/ACIDO/BACKPHP_TEST/public/img/pagos/bancolombia.svg');
 
 -- Productos demo (disparan trg_notificar_nuevo_producto: es normal ver alertas)
 INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor) VALUES

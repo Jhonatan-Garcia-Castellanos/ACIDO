@@ -51,6 +51,7 @@ if (!isset($metodos)) { $metodos = []; }
             <header class="topbar">
                 <div class="search-bar"><input type="text" placeholder="Carrito..."><button><i class="fa-solid fa-magnifying-glass"></i></button></div>
                 <div class="topbar-user">
+                    <span id="liveClock" title="Hora del sistema" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;">--:--:--</span>
                     <div class="icon-badge">
                         <i class="fa-solid fa-bell"></i>
                         <span class="badge red">3+</span>
@@ -103,21 +104,21 @@ if (!isset($metodos)) { $metodos = []; }
                             <tbody>
                                 <?php if (!empty($cartData['items'])): ?>
                                     <?php foreach ($cartData['items'] as $it): ?>
-                                    <tr>
+                                    <tr id="cartRow-<?php echo $it['ID_Producto']; ?>">
                                         <td><strong><?php echo htmlspecialchars($it['Nombre_Producto']); ?></strong><br><small style="color:#a0aec0;">Stock: <?php echo (int)$it['Stock_Actual']; ?><?php if((int)$it['Activo']!==1) echo " · INACTIVO"; ?></small></td>
                                         <td>$<?php echo number_format($it['Precio_Actual'],0,',','.'); ?></td>
                                         <td>
-                                            <form action="index.php?action=carrito" method="POST" style="display:flex;gap:6px;align-items:center;">
+                                            <form action="index.php?action=carrito" method="POST" class="ajax-cart-update" style="display:flex;gap:6px;align-items:center;">
                                                 <input type="hidden" name="cart_action" value="update">
                                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
-                                                <input type="number" name="qty" value="<?php echo $it['cantidad']; ?>" min="1" max="10" class="crud-input" style="width:70px;">
+                                                <input type="number" name="qty" value="<?php echo $it['cantidad']; ?>" min="1" max="10" class="crud-input qty-input" data-id="<?php echo $it['ID_Producto']; ?>" data-price="<?php echo $it['Precio_Actual']; ?>" style="width:70px;">
                                                 <button type="submit" class="btn-action-edit">Actualizar</button>
                                             </form>
                                         </td>
-                                        <td><strong>$<?php echo number_format($it['subtotal'],0,',','.'); ?></strong></td>
+                                        <td class="row-subtotal" data-id="<?php echo $it['ID_Producto']; ?>"><strong>$<?php echo number_format($it['subtotal'],0,',','.'); ?></strong></td>
                                         <td style="text-align:right;">
-                                            <form action="index.php?action=carrito" method="POST" style="display:inline;">
+                                            <form action="index.php?action=carrito" method="POST" class="ajax-cart-remove" data-id="<?php echo $it['ID_Producto']; ?>" style="display:inline;">
                                                 <input type="hidden" name="cart_action" value="remove">
                                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                                 <input type="hidden" name="id" value="<?php echo $it['ID_Producto']; ?>">
@@ -137,32 +138,161 @@ if (!isset($metodos)) { $metodos = []; }
                 <div class="crud-modern-card">
                     <div class="crud-modern-header"><i class="fa-solid fa-cash-register"></i><span>Finalizar compra</span></div>
                     <div class="crud-form-body">
-                        <div style="font-size:20px;font-weight:800;margin-bottom:12px;">Total: $<?php echo number_format($cartData['total'],0,',','.'); ?></div>
-                        <form action="index.php?action=carrito" method="POST" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+                        <div style="font-size:20px;font-weight:800;margin-bottom:4px;">Total: $<?php echo number_format($cartData['total'],0,',','.'); ?></div>
+                        <small style="color:#a0aec0;display:block;margin-bottom:16px;">Selecciona tu medio de pago y confirma. El número solo se guarda enmascarado.</small>
+                        <form action="index.php?action=carrito" method="POST" id="pagoForm" autocomplete="off">
                             <input type="hidden" name="cart_action" value="checkout">
                             <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
-                            <div>
-                                <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">MÉTODO DE PAGO</label>
-                                <select name="id_metodo" class="crud-input" required>
-                                    <?php foreach ($metodos as $m): ?>
-                                        <option value="<?php echo $m['ID_Metodo']; ?>"><?php echo htmlspecialchars($m['Tipo_Metodo']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                            <input type="hidden" name="entidad" id="entidadInput" value="">
+                            <div class="medios-pago">
+                                <?php $metodosFirst = true; foreach ($metodos as $m): ?>
+                                <?php
+                                    $tipoLower = mb_strtolower($m['Tipo_Metodo']);
+                                    $claseMedio = (strpos($tipoLower, 'tarjeta') !== false || strpos($tipoLower, 'visa') !== false || strpos($tipoLower, 'card') !== false) ? 'tarjeta' : 'cuenta';
+                                ?>
+                                <label class="medio-option">
+                                    <input type="radio" name="id_metodo" value="<?php echo $m['ID_Metodo']; ?>" class="medio-radio" data-tipo="<?php echo $claseMedio; ?>" data-entidad="<?php echo htmlspecialchars($m['Tipo_Metodo']); ?>" data-logo="<?php echo !empty($m['Logo']) ? '1' : '0'; ?>" <?php echo $metodosFirst ? 'checked' : ''; ?>>
+                                    <span class="medio-logo">
+                                        <?php if (!empty($m['Logo'])): ?>
+                                            <img src="<?php echo htmlspecialchars($m['Logo']); ?>" alt="Logo <?php echo htmlspecialchars($m['Tipo_Metodo']); ?>">
+                                        <?php else: ?>
+                                            <i class="fa-solid fa-money-bill-wave"></i>
+                                        <?php endif; ?>
+                                    </span>
+                                    <span class="medio-nombre"><?php echo htmlspecialchars($m['Tipo_Metodo']); ?></span>
+                                </label>
+                                <?php $metodosFirst = false; endforeach; ?>
                             </div>
-                            <button type="submit" class="btn-crud-save"><i class="fa-solid fa-check"></i> Confirmar compra</button>
+                            <div id="campoTarjeta" class="pago-campos" style="display:none;">
+                                <div class="pago-campo ancho-2-3">
+                                    <label>Número de tarjeta</label>
+                                    <input type="text" id="numeroTarjeta" name="numero_tarjeta" class="crud-input" inputmode="numeric" maxlength="19" placeholder="4111 1111 1111 1111">
+                                </div>
+                                <div class="pago-campo ancho-1-3">
+                                    <label>CVV</label>
+                                    <input type="password" name="cvv" class="crud-input" maxlength="4" inputmode="numeric" placeholder="•••">
+                                </div>
+                                <div class="pago-campo">
+                                    <label>Titular de la tarjeta</label>
+                                    <input type="text" name="titular" class="crud-input" placeholder="Nombre como aparece en la tarjeta">
+                                </div>
+                                <div class="pago-campo ancho-1-2">
+                                    <label>Vencimiento</label>
+                                    <input type="text" name="fecha_exp" class="crud-input" maxlength="5" placeholder="MM/AA">
+                                </div>
+                            </div>
+                            <div id="campoCuenta" class="pago-campos" style="display:none;">
+                                <div class="pago-campo">
+                                    <label>Número de cuenta o celular</label>
+                                    <input type="text" name="cuenta" class="crud-input" inputmode="numeric" maxlength="20" placeholder="Ej. 3001234567">
+                                </div>
+                                <small style="color:#a0aec0;">La confirmación se envía a tu aplicación bancaria.</small>
+                            </div>
+                            <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <button type="submit" class="btn-crud-save"><i class="fa-solid fa-lock"></i> Confirmar y pagar</button>
+                                <small style="color:#a0aec0;">Se crea venta + detalle + pago + factura automática. Stock se descuenta al pagar.</small>
+                            </div>
                         </form>
-                        <small style="color:#a0aec0;">Se crea venta + detalle + pago + factura automática. Stock se descuenta al pagar.</small>
                     </div>
                 </div>
                 <?php endif; ?>
             </div>
         </main>
     </div>
+    <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        const sb=document.getElementById('sidebar'),tb=document.getElementById('toggleSidebar');
-        if(tb&&sb)tb.addEventListener('click',()=>sb.classList.toggle('collapsed'));
-        const ub=document.getElementById('userMenuBtn'),um=document.getElementById('userDropdownMenu');
-        if(ub&&um){ub.addEventListener('click',(e)=>{e.stopPropagation();um.classList.toggle('show');});document.addEventListener('click',(e)=>{if(!um.contains(e.target)&&!ub.contains(e.target))um.classList.remove('show');});}
+        const fmtMoney = (v) => '$' + Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+        // Subtotal en vivo al cambiar cantidad (antes de guardar)
+        document.querySelectorAll('.qty-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const q = Math.max(1, Math.min(10, parseInt(inp.value, 10) || 1));
+                const cell = document.querySelector('.row-subtotal[data-id="' + inp.dataset.id + '"] strong');
+                if (cell) cell.textContent = fmtMoney(q * parseFloat(inp.dataset.price));
+            });
+        });
+        async function postCart(form) {
+            const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            return res.json();
+        }
+        function paintTotals(d) {
+            window.updateCartBadge(d.cartCount);
+            const t = document.getElementById('cartTotal');
+            if (t) t.textContent = fmtMoney(d.total);
+            Object.keys(d.items || {}).forEach(id => {
+                const cell = document.querySelector('.row-subtotal[data-id="' + id + '"] strong');
+                if (cell) cell.textContent = fmtMoney(d.items[id].subtotal);
+                const inp = document.querySelector('.qty-input[data-id="' + id + '"]');
+                if (inp) inp.value = d.items[id].cantidad;
+            });
+        }
+        // Actualizar cantidad sin recargar
+        document.querySelectorAll('.ajax-cart-update').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const d = await postCart(f);
+                    if (d.success) { paintTotals(d); window.acidoToast('Cantidad actualizada', 'ok'); }
+                } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
+            });
+        });
+        // Quitar producto con animación, sin recargar
+        document.querySelectorAll('.ajax-cart-remove').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = f.dataset.id;
+                try {
+                    const d = await postCart(f);
+                    if (d.success) {
+                        paintTotals(d);
+                        const row = document.getElementById('cartRow-' + id);
+                        if (row) { row.classList.add('removing'); setTimeout(() => row.remove(), 300); }
+                        window.acidoToast('Producto quitado', 'ok');
+                        if ((d.cartCount || 0) === 0) setTimeout(() => window.location.reload(), 400);
+                    }
+                } catch (err) { window.acidoToast('Sin conexión, intenta de nuevo', 'error'); }
+            });
+        });
+        // ---- Selector de medios de pago con logos ----
+        (function(){
+            const radios = document.querySelectorAll('.medio-radio');
+            const cajTarjeta = document.getElementById('campoTarjeta');
+            const cajCuenta = document.getElementById('campoCuenta');
+            const entidadInput = document.getElementById('entidadInput');
+            const numTarjeta = document.getElementById('numeroTarjeta');
+            // Refleja al backend (VentaController::checkout): tarjeta exige número+Luhn,
+            // cuenta/celular solo si el método tiene logo; el resto no pide nada.
+            function actualizar() {
+                const sel = document.querySelector('.medio-radio:checked');
+                if (!sel) return;
+                entidadInput.value = sel.dataset.entidad || '';
+                const req = (box, on) => box.querySelectorAll('input').forEach(i => {
+                    if (on) i.setAttribute('required', 'required');
+                    else i.removeAttribute('required');
+                });
+                if (sel.dataset.tipo === 'tarjeta') {
+                    cajTarjeta.style.display = 'grid';
+                    cajCuenta.style.display = 'none';
+                    req(cajTarjeta, true);
+                    req(cajCuenta, false);
+                } else if (sel.dataset.logo === '1') {
+                    cajTarjeta.style.display = 'none';
+                    cajCuenta.style.display = 'grid';
+                    req(cajCuenta, true);
+                    req(cajTarjeta, false);
+                } else {
+                    cajTarjeta.style.display = 'none';
+                    cajCuenta.style.display = 'none';
+                    req(cajTarjeta, false);
+                    req(cajCuenta, false);
+                }
+            }
+            radios.forEach(r => r.addEventListener('change', actualizar));
+            if (numTarjeta) numTarjeta.addEventListener('input', function() {
+                const dig = this.value.replace(/\D/g, '').slice(0, 16);
+                this.value = dig.replace(/(\d{4})(?=\d)/g, '$1 ');
+            });
+            actualizar();
+        })();
     </script>
 </body>
 </html>
