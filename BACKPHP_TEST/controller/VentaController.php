@@ -115,6 +115,7 @@ class VentaController {
         return $this->model->listarVentas($idCli);
     }
     public function detalleVenta($idVenta) { return $this->model->detalleVenta($idVenta); }
+    public function cambiarEstadoPedido($idPedido, $nuevoEstado) { return $this->model->cambiarEstadoPedido($idPedido, $nuevoEstado); }
     public function detalleCompleto($idVenta) { return $this->model->detalleCompleto($idVenta); }
     public function pendientesPara($rol, $idUsuario) {
         if (in_array($rol, ['Administrador','Empleado'], true)) return $this->model->listarPendientes(null);

@@ -93,6 +93,9 @@ if (!isset($facturas)) { $facturas = []; }
             </header>
             <div class="content-padding-crud">
                 <div class="page-header"><h2><?php echo $__esGest?'VENTAS':'MIS COMPRAS'; ?></h2><small style="color:#718096;">Registro diario · <?php echo date('Y-m-d'); ?></small></div>
+                <?php $flashErrV = $_GET['error'] ?? ''; $flashOkV = $_GET['status'] ?? ''; ?>
+                <?php if ($flashErrV !== ''): ?><div style="background:#fed7d7;color:#9b2c2c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;"><?php echo htmlspecialchars($flashErrV); ?></div><?php endif; ?>
+                <?php if ($flashOkV !== ''): ?><div style="background:#c6f6d5;color:#22543d;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-weight:600;"><?php echo htmlspecialchars($flashOkV); ?></div><?php endif; ?>
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px;">
                     <div class="crud-modern-card" style="margin:0;padding:16px;border-left:4px solid #3182ce;">
                         <small style="color:#4a5568;font-weight:700;"><?php echo $__esGest?'GANANCIAS HOY':'MIS COMPRAS HOY'; ?></small>
@@ -121,11 +124,18 @@ if (!isset($facturas)) { $facturas = []; }
                         </div>
                     </div>
                     <?php if ($tabVentas === 'pendientes'): ?>
+                    <?php
+                    // RF 2.8/2.10: avance logístico. Pendiente se paga por checkout (no manual,
+                    // para no desincronizar pago/factura/stock). Preparando = Listo para envío.
+                    $nextMap = ['Pagado' => 'Preparando', 'Preparando' => 'En camino', 'En camino' => 'Entregado'];
+                    $badgeMap = ['Pendiente' => '#e2e8f0;#4a5568', 'Pagado' => '#bee3f8;#2a4365', 'Preparando' => '#fefcbf;#744210', 'En camino' => '#feebc8;#7b341e'];
+                    ?>
                     <div style="overflow-x:auto;">
                         <table class="crud-table" id="ventasTable">
-                            <thead><tr><th>Pedido</th><th>Venta / Compra</th><th>Cliente</th><th>Dirección / Ciudad</th><th>Uds.</th><th>Total</th><th>Estado</th></tr></thead>
+                            <thead><tr><th>Pedido</th><th>Venta / Compra</th><th>Cliente</th><th>Dirección / Ciudad</th><th>Uds.</th><th>Total</th><th>Estado</th><?php if ($__esGest): ?><th style="text-align:right;">Logística</th><?php endif; ?></tr></thead>
                             <tbody>
                                 <?php if (!empty($pendientes)): foreach ($pendientes as $p): ?>
+                                <?php $estP = $p['Estado_Pedido']; $colP = explode(';', $badgeMap[$estP] ?? '#edf2f7;#4a5568'); $nextP = $nextMap[$estP] ?? null; ?>
                                 <tr>
                                     <td style="font-weight:bold;">#<?php echo $p['ID_Pedido']; ?> <small>(<?php echo htmlspecialchars($p['Tipo_Envio'] ?? ''); ?>)</small></td>
                                     <td>#<?php echo $p['ID_Venta']; ?> · <?php echo htmlspecialchars($p['Fecha_Compra']); ?></td>
@@ -133,10 +143,32 @@ if (!isset($facturas)) { $facturas = []; }
                                     <td><?php echo htmlspecialchars(($p['Direccion_Envio'] ?? '').' — '.($p['Nombre_Ciudad'] ?? '')); ?></td>
                                     <td><?php echo (int)$p['Unidades']; ?></td>
                                     <td><strong>$<?php echo number_format($p['Total'],0,',','.'); ?></strong></td>
-                                    <td><span style="background:#fefcbf;padding:4px 8px;border-radius:4px;font-weight:700;"><?php echo htmlspecialchars($p['Estado_Pedido']); ?></span></td>
+                                    <td><span style="background:<?php echo $colP[0]; ?>;color:<?php echo $colP[1]; ?>;padding:4px 8px;border-radius:4px;font-weight:700;"><?php echo htmlspecialchars($estP); ?></span></td>
+                                    <?php if ($__esGest): ?>
+                                    <td style="text-align:right;white-space:nowrap;">
+                                        <?php if ($nextP): ?>
+                                        <form method="POST" action="index.php?action=ventas" style="display:inline;">
+                                            <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                            <input type="hidden" name="pedido_id" value="<?php echo $p['ID_Pedido']; ?>">
+                                            <input type="hidden" name="pedido_estado" value="<?php echo $nextP; ?>">
+                                            <button type="submit" class="btn-action-edit" title="Avanzar a <?php echo $nextP; ?>"><i class="fa-solid fa-forward"></i> <?php echo $nextP; ?></button>
+                                        </form>
+                                        <?php elseif ($estP === 'Pendiente'): ?>
+                                        <small style="color:#a0aec0;">Pendiente de pago</small>
+                                        <?php endif; ?>
+                                        <?php if (in_array($estP, ['Pendiente','Pagado','Preparando'], true)): ?>
+                                        <form method="POST" action="index.php?action=ventas" style="display:inline;" onsubmit="return confirm('¿Cancelar el pedido #<?php echo $p['ID_Pedido']; ?>?');">
+                                            <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
+                                            <input type="hidden" name="pedido_id" value="<?php echo $p['ID_Pedido']; ?>">
+                                            <input type="hidden" name="pedido_estado" value="Cancelado">
+                                            <button type="submit" class="btn-action-delete" title="Cancelar pedido"><i class="fa-solid fa-ban"></i></button>
+                                        </form>
+                                        <?php endif; ?>
+                                    </td>
+                                    <?php endif; ?>
                                 </tr>
                                 <?php endforeach; else: ?>
-                                <tr><td colspan="7" style="text-align:center;color:#a0aec0;padding:40px;font-style:italic;">Sin ventas pendientes por entregar.</td></tr>
+                                <tr><td colspan="8" style="text-align:center;color:#a0aec0;padding:40px;font-style:italic;">Sin ventas pendientes por entregar.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
