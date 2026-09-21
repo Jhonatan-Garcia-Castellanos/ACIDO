@@ -850,12 +850,24 @@ if (isset($_GET["action"])) {
         // Guardar producto (solo Admin/Empleado)
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inv_action"]) && $_POST["inv_action"] === "save") {            requireRole('inventario_save');
             checkCsrf();
+            $imagenSubida = false;
+            $pidForm = trim((string)($_POST["ID_Producto"] ?? ''));
+            if (!empty($_FILES["imagen_producto"]) && ($_FILES["imagen_producto"]["error"] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $resImg = $productoController->subirImagen($pidForm, $_FILES["imagen_producto"]);
+                if (empty($resImg['ok'])) {
+                    header("Location: index.php?action=inventario&error=" . urlencode($resImg['message'] ?? 'No se pudo subir la imagen'));
+                    exit();
+                }
+                $_POST["Imagen_URL"] = $resImg['ruta'];
+                $imagenSubida = true;
+            }
             $ok = $productoController->guardar($_POST);
             if (!$ok) {
                 header("Location: index.php?action=inventario&error=save_fail");
                 exit();
             }
-            header("Location: index.php?action=inventario");
+            $msg = $imagenSubida ? 'Producto guardado con su imagen.' : '';
+            header("Location: index.php?action=inventario" . ($msg !== '' ? '&status=' . urlencode($msg) : ''));
             exit();
         }
         // Inactivar/Activar producto (solo Admin) vía POST+CSRF. Sin borrado fisico: trigger lo bloquea.

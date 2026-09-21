@@ -202,7 +202,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                     (Tablas <code>categoria</code> y <code>proveedor</code> vacías)
                                 </div>
                             <?php endif; ?>
-                            <form action="index.php?action=inventario" method="POST">
+                            <form action="index.php?action=inventario" method="POST" enctype="multipart/form-data">
                                 <input type="hidden" name="inv_action" value="save">
                                 <?php echo class_exists('Csrf') ? Csrf::field() : ''; ?>
                                 <input type="hidden" name="ID_Producto" id="form-id">
@@ -244,6 +244,20 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                         <button type="button" class="btn-crud-cancel" id="btn-cancelar" onclick="limpiarFormulario()" style="display:none;">Cancelar</button>
                                     </div>
                                 </div>
+                                <div id="form-img-block" style="display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin-top:16px;padding:14px;background:#f8f9fc;border:1px solid #edf2f7;border-radius:10px;">
+                                    <div>
+                                        <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;">IMAGEN DEL PRODUCTO</label>
+                                        <div id="form-img-preview" style="width:88px;height:88px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px dashed #cbd5e0;">
+                                            <img id="form-img-src" src="" alt="Vista previa" style="display:none;width:100%;height:100%;object-fit:cover;" class="prod-img-src">
+                                            <i id="form-img-icon" class="fa-solid fa-shirt" style="font-size:32px;color:#cbd5e0;"></i>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:11px;font-weight:700;color:#4a5568;margin-bottom:6px;" for="imagen_producto">SUBIR IMAGEN (JPG/PNG/WEBP · máx 5MB)</label>
+                                        <input type="file" id="imagen_producto" name="imagen_producto" accept="image/*" class="crud-input" style="max-width:420px;">
+                                        <small style="color:#a0aec0;font-size:11px;display:block;margin-top:6px;">Se guardará en la base de datos (<code>producto.Imagen_URL</code>) y aparecerá en el catálogo, carrito y ventas. Si no subes imagen, el producto conserva la actual.</small>
+                                    </div>
+                                </div>
                                 <small style="color:#a0aec0;display:block;margin-top:12px;font-size:11px;">* Sin borrado fisico por trigger <code>trg_bloquear_borrado_producto</code> y terminos legales: solo inactivar/activar (Admin).</small>
                             </form>
                         </div>
@@ -273,6 +287,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                 <tr>
                                     <th><a href="<?php echo $invLink('ID_Producto'); ?>" style="color:inherit;text-decoration:none;"><b>ID<?php echo $invArrow('ID_Producto'); ?></b></a></th>
                                     <th><a href="<?php echo $invLink('Nombre_Producto'); ?>" style="color:inherit;text-decoration:none;"><b>Producto<?php echo $invArrow('Nombre_Producto'); ?></b></a></th>
+                                    <th><b>Imagen</b></th>
                                     <th><a href="<?php echo $invLink('Precio_Actual'); ?>" style="color:inherit;text-decoration:none;"><b>Precio<?php echo $invArrow('Precio_Actual'); ?></b></a></th>
                                     <th><a href="<?php echo $invLink('Stock_Actual'); ?>" style="color:inherit;text-decoration:none;"><b>Stock / Mín<?php echo $invArrow('Stock_Actual'); ?></b></a></th>
                                     <th><b>Categoría</b></th>
@@ -290,6 +305,13 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                         <tr id="prod-<?php echo (int)$row['ID_Producto']; ?>">
                                             <td style="font-weight:bold;"><?php echo htmlspecialchars($row['ID_Producto']); ?></td>
                                             <td><strong><?php echo htmlspecialchars($row['Nombre_Producto']); ?></strong></td>
+                                            <td>
+                                                <?php if (!empty($row['Imagen_URL'])): ?>
+                                                    <img src="<?php echo htmlspecialchars($row['Imagen_URL']); ?>" alt="" loading="lazy" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid #edf2f7;">
+                                                <?php else: ?>
+                                                    <div style="width:44px;height:44px;border-radius:8px;background:#f8f9fc;display:flex;align-items:center;justify-content:center;border:1px solid #edf2f7;"><i class="fa-solid fa-shirt" style="font-size:18px;color:#cbd5e0;"></i></div>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>$<?php echo number_format($row['Precio_Actual'], 0, ',', '.'); ?></td>
                                             <td>
                                                 <?php $st = (int)$row['Stock_Actual']; $mn = (int)($row['Stock_Minimo'] ?? 10); ?>
@@ -307,7 +329,8 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                             <?php if ($__canEdit): ?>
                                             <td style="text-align:right;">
                                                 <button type="button" class="btn-action-edit"
-                                                    onclick="editarProducto('<?php echo $row['ID_Producto']; ?>','<?php echo htmlspecialchars($row['Nombre_Producto'], ENT_QUOTES); ?>','<?php echo $row['Precio_Actual']; ?>','<?php echo $row['Stock_Actual']; ?>','<?php echo $row['ID_Categoria']; ?>','<?php echo $row['ID_Proveedor']; ?>','<?php echo (int)($row['Stock_Minimo'] ?? 10); ?>')">
+                                                    data-img="<?php echo htmlspecialchars($row['Imagen_URL'] ?? '', ENT_QUOTES); ?>"
+                                                    onclick="editarProducto(this,'<?php echo $row['ID_Producto']; ?>','<?php echo htmlspecialchars($row['Nombre_Producto'], ENT_QUOTES); ?>','<?php echo $row['Precio_Actual']; ?>','<?php echo $row['Stock_Actual']; ?>','<?php echo $row['ID_Categoria']; ?>','<?php echo $row['ID_Proveedor']; ?>','<?php echo (int)($row['Stock_Minimo'] ?? 10); ?>')">
                                                     <i class="fa-solid fa-pen-to-square"></i> Editar
                                                 </button>
                                                 <?php if ($isAdminInv): ?>
@@ -338,7 +361,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="8" style="text-align:center;color:#a0aec0;padding:40px;font-style:italic;">No hay productos. Crea categorías/proveedores y luego el primer producto.</td></tr>
+                                    <tr><td colspan="9" style="text-align:center;color:#a0aec0;padding:40px;font-style:italic;">No hay productos. Crea categorías/proveedores y luego el primer producto.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -470,7 +493,18 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
     </div>
     <script src="/ACIDO/BACKPHP_TEST/public/js/app.js?v=1"></script>
     <script>
-        function editarProducto(id, nombre, precio, stock, cat, prov, minimo) {
+        function setPreviewImagen(ruta) {
+            const img = document.getElementById('form-img-src');
+            const icon = document.getElementById('form-img-icon');
+            const input = document.getElementById('imagen_producto');
+            if (input) input.value = '';
+            if (ruta) {
+                img.src = ruta; img.style.display = 'block'; icon.style.display = 'none';
+            } else {
+                img.src = ''; img.style.display = 'none'; icon.style.display = 'inline';
+            }
+        }
+        function editarProducto(btn, id, nombre, precio, stock, cat, prov, minimo) {
             document.getElementById('form-id').value = id;
             document.getElementById('form-nombre').value = nombre;
             document.getElementById('form-precio').value = precio;
@@ -478,6 +512,7 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
             document.getElementById('form-cat').value = cat;
             document.getElementById('form-prov').value = prov;
             if (document.getElementById('form-minimo')) document.getElementById('form-minimo').value = (minimo !== undefined ? minimo : 10);
+            setPreviewImagen(btn ? (btn.dataset?.img || '') : '');
             document.getElementById('form-card-title').innerText = "Editando: " + nombre;
             document.getElementById('btn-submit-text').innerText = "Actualizar";
             document.getElementById('btn-cancelar').style.display = 'inline-block';
@@ -489,10 +524,25 @@ if (!isset($resumen)) { $resumen = ['valorizacion'=>0,'agotados'=>0,'stock_bajo'
             document.getElementById('form-precio').value = '';
             document.getElementById('form-stock').value = '0';
             if (document.getElementById('form-minimo')) document.getElementById('form-minimo').value = '10';
+            setPreviewImagen('');
             document.getElementById('form-card-title').innerText = "Formulario de Producto";
             document.getElementById('btn-submit-text').innerText = "Guardar";
             document.getElementById('btn-cancelar').style.display = 'none';
         }
+        (function () {
+            const imgInput = document.getElementById('imagen_producto');
+            if (imgInput) {
+                imgInput.addEventListener('change', function () {
+                    const f = this.files && this.files[0];
+                    if (!f) { setPreviewImagen(''); return; }
+                    const img = document.getElementById('form-img-src');
+                    const icon = document.getElementById('form-img-icon');
+                    img.src = URL.createObjectURL(f);
+                    img.style.display = 'block';
+                    icon.style.display = 'none';
+                });
+            }
+        })();
         const invSearch = document.getElementById('invSearch');
         if (invSearch) {
             invSearch.addEventListener('input', function() {

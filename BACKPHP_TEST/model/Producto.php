@@ -147,6 +147,7 @@ class Producto
         $cat = $datos['ID_Categoria'] ?? $datos['categoria'] ?? null;
         $prov = $datos['ID_Proveedor'] ?? $datos['proveedor'] ?? null;
         $minimo = $datos['Stock_Minimo'] ?? $datos['stock_minimo'] ?? $datos['minimo'] ?? 10;
+        $imagen = trim((string)($datos['Imagen_URL'] ?? $datos['imagen_url'] ?? ''));
 
         if ($nombre === '' || !is_numeric($precio) || $precio <= 0) return false;
         if (!is_numeric($stock) || $stock < 0) return false;
@@ -163,17 +164,16 @@ class Producto
             }
             if (!empty($id)) {
                 if (!ctype_digit($id)) return false;
-                if ($conMinimo) {
-                    $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr, Stock_Minimo=:m WHERE ID_Producto=:id AND deleted_at IS NULL");
-                } else {
-                    $stmt = $this->db->prepare("UPDATE producto SET Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr WHERE ID_Producto=:id AND deleted_at IS NULL");
-                }
+                $set = "Nombre_Producto=:n, Precio_Actual=:p, Stock_Actual=:s, ID_Categoria=:c, ID_Proveedor=:pr";
+                if ($conMinimo) $set .= ", Stock_Minimo=:m";
+                if ($imagen !== '') $set .= ", Imagen_URL=:img";
+                $stmt = $this->db->prepare("UPDATE producto SET $set WHERE ID_Producto=:id AND deleted_at IS NULL");
                 $stmt->bindParam(":id", $id, PDO::PARAM_INT);
             } else {
                 if ($conMinimo) {
-                    $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor, Stock_Minimo) VALUES (:n,:p,:s,:c,:pr,:m)");
+                    $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor, Stock_Minimo, Imagen_URL) VALUES (:n,:p,:s,:c,:pr,:m,:img)");
                 } else {
-                    $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor) VALUES (:n,:p,:s,:c,:pr)");
+                    $stmt = $this->db->prepare("INSERT INTO producto (Nombre_Producto, Precio_Actual, Stock_Actual, ID_Categoria, ID_Proveedor, Imagen_URL) VALUES (:n,:p,:s,:c,:pr,:img)");
                 }
             }
             $stmt->bindParam(":n", $nombre);
@@ -182,6 +182,7 @@ class Producto
             $stmt->bindParam(":c", $cat, PDO::PARAM_INT);
             $stmt->bindParam(":pr", $prov, PDO::PARAM_INT);
             if ($conMinimo) $stmt->bindParam(":m", $minimo, PDO::PARAM_INT);
+            $stmt->bindParam(":img", $imagen);
             return $stmt->execute();
         } catch (PDOException $e) {
             // Triggers: trg_validar_precio_positivo, trg_impedir_stock_negativo, FK inexistente

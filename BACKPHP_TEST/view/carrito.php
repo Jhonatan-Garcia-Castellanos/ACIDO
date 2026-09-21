@@ -122,7 +122,20 @@ if (!isset($shipping)) { $shipping = null; }
                                 <?php if (!empty($cartData['items'])): ?>
                                     <?php foreach ($cartData['items'] as $it): ?>
                                     <tr id="cartRow-<?php echo $it['ID_Producto']; ?>">
-                                        <td><strong><?php echo htmlspecialchars($it['Nombre_Producto']); ?></strong><br><small style="color:#a0aec0;">Stock: <?php echo (int)$it['Stock_Actual']; ?><?php if((int)$it['Activo']!==1) echo " · INACTIVO"; ?></small></td>
+                                        <td>
+                                            <div style="display:flex;align-items:center;gap:12px;">
+                                                <div style="width:54px;height:54px;border-radius:8px;background:#f8f9fc;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #edf2f7;flex-shrink:0;">
+                                                    <?php if (!empty($it['Imagen_URL'])): ?>
+                                                        <img src="<?php echo htmlspecialchars($it['Imagen_URL']); ?>" alt="<?php echo htmlspecialchars($it['Nombre_Producto']); ?>" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                                                    <?php else: ?>
+                                                        <i class="fa-solid fa-shirt" style="font-size:20px;color:#cbd5e0;"></i>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div>
+                                                    <strong><?php echo htmlspecialchars($it['Nombre_Producto']); ?></strong><br><small style="color:#a0aec0;">Stock: <?php echo (int)$it['Stock_Actual']; ?><?php if((int)$it['Activo']!==1) echo " · INACTIVO"; ?></small>
+                                                </div>
+                                            </div>
+                                        </td>
                                         <td>$<?php echo number_format($it['Precio_Actual'],0,',','.'); ?></td>
                                         <td>
                                             <?php if ($checkoutStep === 1): ?>
