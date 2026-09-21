@@ -5,3 +5,5 @@
 public/img/perfiles/*
 !public/img/perfiles/.gitkeep
 
+public/img/productos/*
+!public/img/productos/.gitkeep
