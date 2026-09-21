@@ -348,9 +348,8 @@ class Usuario
         }
     }
 
-    // =========================================================================
+    
     // CRUD POR ID (MVC: la vista no toca la BD) - Esquema DB.sql
-    // =========================================================================
     public function contarUsuarios($q = '')
     {
         try {
