@@ -412,7 +412,7 @@ class Venta
         } catch (PDOException $e) { return ['items' => [], 'cliente' => []]; }
     }
 
-    /** RF 2.5: ventas pendientes por entregar (Preparando/En camino). */
+    /**  */
     public function listarPendientes($idCliente = null, $q = '', $desde = '', $hasta = '')
     {
         try {
