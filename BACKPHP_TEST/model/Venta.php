@@ -183,6 +183,7 @@ class Venta
             if (empty($items)) return;
             // Mini-factura PDF de esta venta
             $pdf = new PdfSimple();
+            $pdf->setLogo(__DIR__ . '/../public/img/LOGO2.png');
             $pdf->setFooter('ACIDO COLOMBIA - Factura ' . ($numFactura ?: ('V-' . $idVenta)));
             $pdf->title('ACIDO COLOMBIA - Factura ' . ($numFactura ?: ('V-' . $idVenta)), 'Venta #' . $idVenta . ' | ' . date('Y-m-d H:i') . ' | ' . $email);
             $widths = [60, 300, 80, 120, 209];

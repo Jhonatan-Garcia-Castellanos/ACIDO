@@ -798,6 +798,7 @@ if (isset($_GET["action"])) {
         $ticket = $nPdf > 0 ? $totalGen / $nPdf : 0;
         $rangoFile = ($desP !== '' || $hasP !== '') ? ('_' . ($desP !== '' ? $desP : 'ini') . '_a_' . ($hasP !== '' ? $hasP : 'hoy')) : '';
         $pdf = new PdfSimple();
+        $pdf->setLogo(__DIR__ . '/public/img/LOGO2.png');
         $pdf->setFooter('ACIDO COLOMBIA - Generado por ' . $genPor . ' - ' . date('Y-m-d H:i'));
         $pdf->title('ACIDO COLOMBIA - Reporte de Ventas', $rangoTxt . ' | Generado: ' . date('Y-m-d H:i') . ' por ' . $genPor);
         $pdf->summary([
@@ -1221,6 +1222,7 @@ if (isset($_GET["action"])) {
         if ($filP !== '') $rangoTxt .= ' | Filtro: ' . $filP;
         if ($qP !== '') $rangoTxt .= ' | Busqueda: ' . $qP;
         $pdf = new PdfSimple();
+        $pdf->setLogo(__DIR__ . '/public/img/LOGO2.png');
         $pdf->setFooter('ACIDO COLOMBIA - PQR - Generado por ' . $genPor . ' - ' . date('Y-m-d H:i'));
         $pdf->title('ACIDO COLOMBIA - Reporte PQR', $rangoTxt . ' | Generado: ' . date('Y-m-d H:i') . ' por ' . $genPor);
         $pdf->summary([
