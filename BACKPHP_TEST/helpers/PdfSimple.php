@@ -18,6 +18,7 @@ class PdfSimple
     private $rowNum = 0;
     private $company = [];
     private $logo = null; // ['w','h','rgb','aspect'] si hay logo incrustado
+    private $logoBg = null; // color de fondo sobre el que se compuso el logo
 
     // Datos de la empresa que van en el encabezado de los reportes.
     public const COMPANY = [
@@ -43,11 +44,13 @@ class PdfSimple
         $this->company = array_merge(self::COMPANY, array_filter($c, fn($v) => $v !== null && $v !== ''));
     }
 
-    /** Incrusta el logo (PNG 8-bit RGB/RGBA, sin entrelazado). Si no se puede, sigue sin logo. */
-    public function setLogo($path) {
-        $dec = $this->pngDecode((string)$path);
+    /** Incrusta el logo (PNG 8-bit RGB/RGBA, sin entrelazado). Si no se puede, sigue sin logo.
+     *  $bg = color de fondo para componer la transparencia (por defecto navy corporativo). */
+    public function setLogo($path, array $bg = [28, 59, 74]) {
+        $dec = $this->pngDecode((string)$path, $bg);
         if ($dec === false) return;
         $this->logo = $dec + ['aspect' => $dec['w'] / max(1, $dec['h'])];
+        $this->logoBg = $bg;
     }
 
     /** Línea "Razón social - NIT | dirección | teléfonos" del encabezado corporativo. */
@@ -110,7 +113,10 @@ class PdfSimple
             $logoH = 34;
             $logoW = (int)round($logoH * $this->logo['aspect'], 0);
             $x0 = $this->ml;
-            $this->cur[] = ['t' => 'rect', 'x' => $x0, 'y' => $this->y, 'w' => $logoW, 'h' => $logoH, 'fill' => [28, 59, 74]];
+            // Chip navy solo cuando el logo se compuso sobre fondo oscuro (para que los tonos crema se vean)
+            if ($this->logoBg === null || $this->logoBg[0] < 128) {
+                $this->cur[] = ['t' => 'rect', 'x' => $x0, 'y' => $this->y, 'w' => $logoW, 'h' => $logoH, 'fill' => [28, 59, 74]];
+            }
             $this->cur[] = ['t' => 'img', 'x' => $x0, 'y' => $this->y, 'w' => $logoW, 'h' => $logoH];
             $tx = $x0 + $logoW + 12;
             $this->cur[] = ['t' => 'txt', 'x' => $tx, 'y' => $this->y + 4, 'w' => 0, 'a' => 'L', 's' => $this->company['nombre'], 'f' => 'Helvetica-Bold', 'z' => 12];
@@ -194,7 +200,7 @@ class PdfSimple
      * y devuelve RGB plano (RGBA compuesto sobre blanco). false si no aplica.
      * Implementación mínima con zlib para no depender de GD/ImageMagick.
      */
-    private function pngDecode($path)
+    private function pngDecode($path, array $bg = [28, 59, 74])
     {
         $raw = @file_get_contents($path);
         if ($raw === false || substr($raw, 0, 8) !== "\x89PNG\x0d\x0a\x1a\x0a") return false;
@@ -250,7 +256,6 @@ class PdfSimple
             }
             if ($ct === 6) {
                 $rowRgb = '';
-                $bg = [28, 59, 74];
                 for ($i = 0; $i < $stride; $i += 4) {
                     $al = ord($rec[$i + 3]);
                     if ($al === 255) {
