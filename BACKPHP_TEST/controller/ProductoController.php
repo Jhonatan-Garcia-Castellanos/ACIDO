@@ -51,10 +51,19 @@ class ProductoController {
         if (!@move_uploaded_file($file['tmp_name'], $destFs)) {
             return ['ok' => false, 'message' => 'No se pudo guardar la imagen.'];
         }
-        $rutaWeb = '/ACIDO/BACKPHP_TEST/public/img/productos/' . $nuevo;
-        if (!empty($anterior) && strpos($anterior, '/public/img/productos/') !== false) {
-            $oldFs = __DIR__ . '/../' . ltrim(preg_replace('#^/ACIDO/BACKPHP_TEST/#', '', $anterior), '/');
-            if (is_file($oldFs) && realpath($oldFs) !== realpath($destFs)) @unlink($oldFs);
+        // Base web dinámica (APP_URL o SCRIPT_NAME) para no hardcodear la carpeta
+        $base = '/ACIDO/BACKPHP_TEST';
+        try {
+            if (file_exists(__DIR__ . '/../helpers/ProductoImg.php')) {
+                require_once __DIR__ . '/../helpers/ProductoImg.php';
+            }
+            if (function_exists('app_base_path')) $base = app_base_path();
+        } catch (Throwable $e) {}
+        $rutaWeb = $base . '/public/img/productos/' . $nuevo;
+        if (!empty($anterior) && strpos((string)$anterior, '/public/img/productos/') !== false) {
+            $oldBase = basename((string)$anterior);
+            $oldFs = $dirFs . '/' . $oldBase;
+            if ($oldBase !== $nuevo && is_file($oldFs)) @unlink($oldFs);
         }
         return ['ok' => true, 'message' => 'Imagen subida.', 'ruta' => $rutaWeb];
     }

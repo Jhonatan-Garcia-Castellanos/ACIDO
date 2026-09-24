@@ -10,6 +10,7 @@ require_once "model/AlertaStock.php";
 require_once "lib/Mailer.php";
 require_once "lib/Csrf.php";
 require_once "helpers/Session.php";
+require_once "helpers/ProductoImg.php";
 
 Session::start();
 // 1.3 Expiración por inactividad (15 min): si expiró mata y redirige/responde JSON

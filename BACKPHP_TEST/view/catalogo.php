@@ -117,10 +117,12 @@ if (!isset($items)) { $items = []; }
                 <?php else: ?>
                 <div id="catGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
                     <?php foreach ($items as $it): ?>
+                    <?php $imgUrl = function_exists('imagen_producto_url') ? imagen_producto_url($it['Imagen_URL'] ?? null) : (!empty($it['Imagen_URL']) ? $it['Imagen_URL'] : null); $imgAlt = $it['Nombre_Producto'] ?? 'Producto'; ?>
                     <div class="crud-modern-card" style="margin:0;overflow:hidden;display:flex;flex-direction:column;">
-                        <div style="height:150px;background:#f8f9fc;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
-                            <?php if (!empty($it['Imagen_URL'])): ?>
-                                <img src="<?php echo htmlspecialchars($it['Imagen_URL']); ?>" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                        <div style="height:220px;background:#f8f9fc;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;padding:10px;">
+                            <?php if (!empty($imgUrl)): ?>
+                                <img src="<?php echo htmlspecialchars($imgUrl); ?>" alt="<?php echo htmlspecialchars($imgAlt); ?>" style="width:100%;height:100%;object-fit:contain;" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+                                <i class="fa-solid fa-shirt" style="display:none;font-size:48px;color:#cbd5e0;"></i>
                             <?php else: ?>
                                 <i class="fa-solid fa-shirt" style="font-size:48px;color:#cbd5e0;"></i>
                             <?php endif; ?>
